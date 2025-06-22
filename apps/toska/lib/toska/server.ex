@@ -10,6 +10,7 @@ defmodule Toska.Server do
   require Logger
 
   @name __MODULE__
+  @http_server_name :"#{__MODULE__}.HTTPServer"
 
   # Client API
 
@@ -122,11 +123,17 @@ defmodule Toska.Server do
   def init(state) do
     Logger.info("Initializing Toska server with config: #{inspect(state)}")
 
-    # Here you would initialize your actual server components
-    # For now, we'll just simulate server initialization
-    Process.send_after(self(), :server_ready, 1000)
+    # Start the HTTP server using Bandit
+    case start_http_server(state) do
+      {:ok, bandit_pid} ->
+        Logger.info("HTTP server started successfully on #{state.host}:#{state.port}")
+        Process.send_after(self(), :server_ready, 500)
+        {:ok, Map.merge(state, %{status: :starting, bandit_pid: bandit_pid})}
 
-    {:ok, Map.put(state, :status, :starting)}
+      {:error, reason} ->
+        Logger.error("Failed to start HTTP server: #{inspect(reason)}")
+        {:stop, {:http_server_failed, reason}}
+    end
   end
 
   @impl true
@@ -140,8 +147,8 @@ defmodule Toska.Server do
       status: state.status,
       uptime: uptime,
       config: Map.take(state, [:host, :port, :env, :daemon]),
-      pid: self(),
-      node: Node.self()
+      pid: inspect(self()),
+      node: to_string(Node.self())
     }
 
     {:reply, status_info, state}
@@ -173,17 +180,59 @@ defmodule Toska.Server do
   end
 
   @impl true
-  def terminate(reason, _state) do
+  def terminate(reason, state) do
     Logger.info("Toska server terminating: #{inspect(reason)}")
-    # Cleanup code would go here
+
+    # Stop the HTTP server if it's running
+    if Map.has_key?(state, :bandit_pid) and state.bandit_pid do
+      stop_http_server()
+    end
+
     :ok
   end
 
   # Private helper functions
 
-  defp simulate_server_work do
-    # This is where actual server logic would go
-    # For now, just log that we're working
-    Logger.debug("Server is processing requests...")
+  defp start_http_server(state) do
+    bandit_options = [
+      plug: Toska.Router,
+      port: state.port,
+      ip: parse_host(state.host)
+    ]
+
+    case Bandit.start_link(bandit_options) do
+      {:ok, pid} ->
+        # Register the pid with our own name for management
+        Process.register(pid, @http_server_name)
+        {:ok, pid}
+      {:error, {:already_started, pid}} ->
+        {:ok, pid}
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
+
+  defp stop_http_server do
+    case Process.whereis(@http_server_name) do
+      nil ->
+        Logger.debug("HTTP server already stopped")
+        :ok
+      pid ->
+        Process.unregister(@http_server_name)
+        GenServer.stop(pid, :normal)
+        Logger.info("HTTP server stopped")
+        :ok
+    end
+  end
+
+  defp parse_host("localhost"), do: {127, 0, 0, 1}
+  defp parse_host("127.0.0.1"), do: {127, 0, 0, 1}
+  defp parse_host("0.0.0.0"), do: {0, 0, 0, 0}
+  defp parse_host(host) when is_binary(host) do
+    case :inet.parse_address(String.to_charlist(host)) do
+      {:ok, ip} -> ip
+      {:error, _} -> {127, 0, 0, 1}  # Default to localhost on parse error
+    end
+  end
+  defp parse_host(_), do: {127, 0, 0, 1}
 end
