@@ -12,6 +12,7 @@ This document summarizes the key/value store work added to Toska.
 - Added HTTP integration tests and a basic benchmark script.
 - Added a replication follower process that bootstraps from snapshot and tails the AOF stream.
 - Added a `toska replicate` CLI command with daemon support.
+- Added follower offset persistence and replication status endpoint (`/replication/status`).
 - Expanded configuration defaults, validation, and documentation.
 
 ## Core Storage

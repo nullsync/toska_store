@@ -21,6 +21,9 @@ defmodule Toska.Commands.Replicate do
       ["-h"] ->
         show_help()
 
+      ["status" | _rest] ->
+        show_status()
+
       ["start" | rest] ->
         start_follower(rest)
 
@@ -52,6 +55,7 @@ defmodule Toska.Commands.Replicate do
       toska replicate start --leader http://localhost:4000
       toska replicate --leader http://localhost:4000 --poll 2000
       toska replicate --leader http://localhost:4000 --daemon
+      toska replicate status
     """)
 
     :ok
@@ -157,6 +161,22 @@ defmodule Toska.Commands.Replicate do
           {:ok, config} -> config
           _ -> %{}
         end
+    end
+  end
+
+  defp show_status do
+    case Follower.status() do
+      {:ok, status} ->
+        IO.puts(Jason.encode!(status, pretty: true))
+        :ok
+
+      {:error, :not_running} ->
+        Command.show_error("Replication follower is not running")
+        {:error, :not_running}
+
+      {:error, reason} ->
+        Command.show_error("Failed to get follower status: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 

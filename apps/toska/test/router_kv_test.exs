@@ -84,6 +84,12 @@ defmodule Toska.RouterKVTest do
     info = Jason.decode!(info_conn.resp_body)
     assert info["aof_path"]
 
+    status_conn =
+      conn("GET", "/replication/status")
+      |> Toska.Router.call(@opts)
+
+    assert status_conn.status in [200, 404]
+
     snapshot_conn =
       conn("GET", "/replication/snapshot")
       |> Toska.Router.call(@opts)
@@ -93,7 +99,7 @@ defmodule Toska.RouterKVTest do
     assert snapshot["data"]
 
     aof_conn =
-      conn("GET", "/replication/aof?since=0")
+      conn("GET", "/replication/aof?since=0&max_bytes=1024")
       |> Toska.Router.call(@opts)
 
     assert aof_conn.status in [200, 204]

@@ -93,7 +93,11 @@ defmodule Toska.KVStoreTest do
     |> Enum.map(fn {key, value} -> [to_string(key), value] end)
     |> Enum.sort_by(&List.first/1)
     |> Jason.encode!()
-    |> then(&:crypto.hash(:sha256, &1))
+    |> sha256()
+  end
+
+  defp sha256(data) do
+    :crypto.hash(:sha256, data)
     |> Base.encode16(case: :lower)
   end
 

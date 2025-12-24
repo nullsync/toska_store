@@ -46,6 +46,7 @@ defmodule Toska.Router do
         <li>/kv/&lt;key&gt; - GET/PUT/DELETE key/value</li>
         <li>/kv/mget - POST body {"keys": ["a", "b"]}</li>
         <li><a href="/replication/info">/replication/info</a> - Replication metadata</li>
+        <li><a href="/replication/status">/replication/status</a> - Follower status</li>
         <li><a href="/replication/snapshot">/replication/snapshot</a> - Snapshot file</li>
         <li>/replication/aof?since=0 - AOF stream</li>
       </ul>
@@ -120,6 +121,26 @@ defmodule Toska.Router do
     end
   end
 
+  # GET /replication/status - follower status
+  get "/replication/status" do
+    case Toska.Replication.Follower.status() do
+      {:ok, status} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(200, Jason.encode!(status))
+
+      {:error, :not_running} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(404, Jason.encode!(%{error: "Follower not running"}))
+
+      {:error, reason} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(503, Jason.encode!(%{error: "Follower unavailable", reason: inspect(reason)}))
+    end
+  end
+
   # GET /replication/snapshot - snapshot file for followers
   get "/replication/snapshot" do
     case Toska.KVStore.snapshot() do
@@ -155,14 +176,16 @@ defmodule Toska.Router do
     end
   end
 
-  # GET /replication/aof?since=offset - append-only log stream
+  # GET /replication/aof?since=offset&max_bytes=bytes - append-only log stream
   get "/replication/aof" do
     conn = fetch_query_params(conn)
     since_param = conn.params["since"]
+    max_bytes_param = conn.params["max_bytes"]
 
     with {:ok, offset} <- parse_offset(since_param),
          {:ok, path} <- Toska.KVStore.aof_path() do
       size = file_size(path)
+      max_bytes = parse_max_bytes(max_bytes_param)
 
       cond do
         offset < 0 ->
@@ -177,11 +200,12 @@ defmodule Toska.Router do
           |> send_resp(204, "")
 
         true ->
+          to_send = min(size - offset, max_bytes)
           conn
           |> put_resp_content_type("application/octet-stream")
           |> put_resp_header("x-toska-aof-size", Integer.to_string(size))
           |> put_resp_header("x-toska-aof-offset", Integer.to_string(offset))
-          |> send_file(200, path, offset)
+          |> send_file(200, path, offset, to_send)
       end
     else
       {:error, :invalid_offset} ->
@@ -334,6 +358,16 @@ defmodule Toska.Router do
   end
 
   defp parse_offset(_), do: {:error, :invalid_offset}
+
+  defp parse_max_bytes(nil), do: 1024 * 1024
+  defp parse_max_bytes(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int > 0 -> int
+      _ -> 1024 * 1024
+    end
+  end
+
+  defp parse_max_bytes(_), do: 1024 * 1024
 
   defp file_size(path) do
     case File.stat(path) do

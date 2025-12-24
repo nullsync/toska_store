@@ -172,7 +172,8 @@ When the server is running, the HTTP API provides a simple JSON key/value store:
 - `GET /stats` - Store metrics and persistence info
 - `GET /replication/info` - Snapshot + AOF metadata for followers
 - `GET /replication/snapshot` - JSON snapshot file
-- `GET /replication/aof?since=0` - AOF stream from a byte offset
+- `GET /replication/aof?since=0&max_bytes=65536` - AOF stream from a byte offset
+- `GET /replication/status` - Follower status
 
 Follower mode is enabled by setting `replica_url` (or `TOSKA_REPLICA_URL`) and starting the server.
 
@@ -200,6 +201,7 @@ Set `TOSKA_DATA_DIR` to override the data directory for AOF/snapshot files.
 Runtime control metadata (node/cookie) is stored in `~/.toska/toska_runtime.json`.
 Daemon logs are written to `~/.toska/toska_daemon.log`.
 Snapshots include checksums; AOF records include per-line checksums.
+Follower offsets persist to `replica.offset` in the data directory.
 
 ## Development
 

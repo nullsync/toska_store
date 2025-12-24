@@ -326,13 +326,19 @@ When the server is running, the following HTTP endpoints are available:
 - **Response**: snapshot JSON with checksum
 - **Status Code**: 200
 
-### GET `/replication/aof?since=<offset>`
-**Replication AOF Stream** - Append-only log content from a byte offset
+### GET `/replication/aof?since=<offset>&max_bytes=<bytes>`
+**Replication AOF Stream** - Append-only log content from a byte offset (with optional max bytes)
 - **Response**: AOF bytes (JSON lines)
 - **Status Codes**:
   - 200 (data)
   - 204 (no new data)
   - 400 (invalid offset)
+
+### GET `/replication/status`
+**Follower Status** - JSON status for the local follower
+- **Status Codes**:
+  - 200 (running)
+  - 404 (not running)
 
 ### Follower Mode
 
@@ -342,6 +348,8 @@ Set `replica_url` (or `TOSKA_REPLICA_URL`) to run the server as a follower that 
 ./apps/toska/toska config set replica_url http://leader:4000
 ./apps/toska/toska start
 ```
+
+Follower offsets persist to `replica.offset` in the data directory.
 
 ### GET `/kv/:key`
 **Get Value** - Fetch a value by key
