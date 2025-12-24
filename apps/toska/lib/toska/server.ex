@@ -9,6 +9,8 @@ defmodule Toska.Server do
   use GenServer
   require Logger
 
+  alias Toska.NodeControl
+
   @name __MODULE__
   @http_server_name :"#{__MODULE__}.HTTPServer"
 
@@ -32,6 +34,13 @@ defmodule Toska.Server do
     }, name: @name) do
       {:ok, pid} ->
         Logger.info("Toska server started on #{host}:#{port} (env: #{env})")
+        case NodeControl.ensure_server_node() do
+          :ok ->
+            :ok
+
+          {:error, reason} ->
+            Logger.warning("Distributed control disabled: #{inspect(reason)}")
+        end
         {:ok, pid}
 
       {:error, {:already_started, pid}} ->
@@ -61,6 +70,7 @@ defmodule Toska.Server do
           GenServer.stop(@name, :normal)
           Logger.info("Toska server stopped gracefully")
         end
+        NodeControl.clear_runtime()
         :ok
     end
   end
@@ -188,6 +198,7 @@ defmodule Toska.Server do
       stop_http_server()
     end
 
+    NodeControl.clear_runtime()
     :ok
   end
 

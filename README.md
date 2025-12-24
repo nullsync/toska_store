@@ -193,6 +193,9 @@ Start the Toska HTTP server with various configuration options:
 
 # Run as daemon process
 ./apps/toska/toska start --daemon
+
+# Daemon logs
+cat ~/.toska/toska_daemon.log
 ./apps/toska/toska start -d
 
 # Combined options
@@ -206,7 +209,7 @@ Start the Toska HTTP server with various configuration options:
 - `-p, --port PORT` - Port to bind the server (default: 4000)
 - `--host HOST` - Host to bind the server (default: localhost)
 - `--env ENV` - Environment to run in (default: dev)
-- `-d, --daemon` - Run as daemon process
+- `-d, --daemon` - Run as background daemon process
 - `-h, --help` - Show command help
 
 ### Stop Server
@@ -301,6 +304,7 @@ When the server is running, the following HTTP endpoints are available:
 ## Configuration Management
 
 ToskaStore provides comprehensive configuration management through the CLI:
+Set `TOSKA_CONFIG_DIR` to override the configuration directory used for `toska_config.json`.
 
 ### View Configuration
 
@@ -354,6 +358,8 @@ ToskaStore provides comprehensive configuration management through the CLI:
 - **host** - Server host (string, default: "localhost")
 - **env** - Environment (dev|test|prod, default: "dev")
 - **log_level** - Log level (debug|info|warn|error, default: "info")
+
+Runtime control metadata is stored in `~/.toska/toska_runtime.json`.
 
 ## Development
 

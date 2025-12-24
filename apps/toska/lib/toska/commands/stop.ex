@@ -8,7 +8,7 @@ defmodule Toska.Commands.Stop do
   @behaviour Toska.Commands.Command
 
   alias Toska.Commands.Command
-  alias Toska.Server
+  alias Toska.ServerControl
 
   @impl true
   def execute(args) do
@@ -63,7 +63,7 @@ defmodule Toska.Commands.Stop do
       Command.show_info("Force stopping server")
     end
 
-    case Server.stop(force: force) do
+    case ServerControl.stop(force: force) do
       :ok ->
         Command.show_success("Server stopped successfully")
         :ok

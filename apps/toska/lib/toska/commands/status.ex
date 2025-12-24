@@ -8,7 +8,7 @@ defmodule Toska.Commands.Status do
   @behaviour Toska.Commands.Command
 
   alias Toska.Commands.Command
-  alias Toska.Server
+  alias Toska.ServerControl
 
   @impl true
   def execute(args) do
@@ -74,7 +74,7 @@ defmodule Toska.Commands.Status do
   end
 
   defp get_status_info(verbose) do
-    server_status = Server.status()
+    server_status = ServerControl.status()
 
     base_info = %{
       server_status: server_status.status,

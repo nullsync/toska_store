@@ -1,20 +1,20 @@
-# ToskaCli
+# Toska
 
 A command-line interface for the Toska Store server, built with Elixir and designed for extensibility.
 
 ## Overview
 
-ToskaCli provides a comprehensive command-line interface for managing the Toska server process. It includes commands for starting/stopping the server, checking status, and managing configuration.
+Toska provides a comprehensive command-line interface for managing the Toska server process. It includes commands for starting/stopping the server, checking status, and managing configuration.
 
 ## Architecture
 
 The CLI is built with a modular, extensible architecture:
 
-- **Command Parser** (`ToskaCli.CommandParser`) - Routes commands to appropriate handlers
-- **Command Behavior** (`ToskaCli.Commands.Command`) - Defines common behavior for all commands
-- **Individual Commands** (`ToskaCli.Commands.*`) - Specific command implementations
-- **Server Management** (`ToskaCli.Server`) - GenServer for managing the server process
-- **Configuration Management** (`ToskaCli.ConfigManager`) - Persistent configuration storage
+- **Command Parser** (`Toska.CommandParser`) - Routes commands to appropriate handlers
+- **Command Behavior** (`Toska.Commands.Command`) - Defines common behavior for all commands
+- **Individual Commands** (`Toska.Commands.*`) - Specific command implementations
+- **Server Management** (`Toska.Server`) - GenServer for managing the server process
+- **Configuration Management** (`Toska.ConfigManager`) - Persistent configuration storage
 
 ## Installation
 
@@ -28,7 +28,7 @@ mix deps.get
 mix compile
 
 # Build the escript (optional)
-cd apps/toska_cli && mix escript.build
+cd apps/toska && mix escript.build
 ```
 
 ## Usage
@@ -37,33 +37,33 @@ cd apps/toska_cli && mix escript.build
 
 ```bash
 # Start the server
-mix run -e "ToskaCli.run([\"start\", \"--port\", \"8080\"])"
+mix run -e "Toska.run([\"start\", \"--port\", \"8080\"])"
 
 # Check status
-mix run -e "ToskaCli.run([\"status\"])"
+mix run -e "Toska.run([\"status\"])"
 
 # Show help
-mix run -e "ToskaCli.run([\"--help\"])"
+mix run -e "Toska.run([\"--help\"])"
 ```
 
-### Via Escript (from apps/toska_cli)
+### Via Escript (from apps/toska)
 
 ```bash
 # Build the escript first
 mix escript.build
 
 # Run commands
-./toska_cli start --port 8080
-./toska_cli status
-./toska_cli --help
+./toska start --port 8080
+./toska status
+./toska --help
 ```
 
 ### Programmatically
 
 ```elixir
 # In an Elixir session or module
-ToskaCli.run(["start", "--port", "8080"])
-ToskaCli.run(["status"])
+Toska.run(["start", "--port", "8080"])
+Toska.run(["status"])
 ```
 
 ## Commands
@@ -77,20 +77,22 @@ ToskaCli.run(["status"])
 Start the Toska server with various options.
 
 ```bash
-toska_cli start [options]
+toska start [options]
 
 Options:
-  -p, --port PORT     Port to bind the server (default: 4000)
-  --host HOST         Host to bind the server (default: localhost)
-  --env ENV           Environment to run in (default: dev)
-  -d, --daemon        Run as daemon process
+  -p, --port PORT     Port to bind the server (default: config port or 4000)
+  --host HOST         Host to bind the server (default: config host or localhost)
+  --env ENV           Environment to run in (default: config env or dev)
+  -d, --daemon        Run as background daemon process
   -h, --help          Show this help
 
 Examples:
-  toska_cli start
-  toska_cli start --port 8080
-  toska_cli start --host 0.0.0.0 --port 3000
-  toska_cli start --daemon
+  toska start
+  toska start --port 8080
+  toska start --host 0.0.0.0 --port 3000
+  toska start --daemon
+
+Daemon logs are written to `~/.toska/toska_daemon.log`.
 ```
 
 ### stop
@@ -98,15 +100,15 @@ Examples:
 Stop the Toska server gracefully or forcefully.
 
 ```bash
-toska_cli stop [options]
+toska stop [options]
 
 Options:
   -f, --force     Force stop the server
   -h, --help      Show this help
 
 Examples:
-  toska_cli stop
-  toska_cli stop --force
+  toska stop
+  toska stop --force
 ```
 
 ### status
@@ -114,7 +116,7 @@ Examples:
 Display current server status and system information.
 
 ```bash
-toska_cli status [options]
+toska status [options]
 
 Options:
   -v, --verbose   Show detailed status information
@@ -122,9 +124,9 @@ Options:
   -h, --help      Show this help
 
 Examples:
-  toska_cli status
-  toska_cli status --verbose
-  toska_cli status --json
+  toska status
+  toska status --verbose
+  toska status --json
 ```
 
 ### config
@@ -132,7 +134,7 @@ Examples:
 Manage server configuration with subcommands.
 
 ```bash
-toska_cli config <subcommand> [options]
+toska config <subcommand> [options]
 
 Subcommands:
   get <key>           Get configuration value
@@ -141,38 +143,41 @@ Subcommands:
   reset [key]         Reset configuration to defaults
 
 Examples:
-  toska_cli config get port
-  toska_cli config set port 8080
-  toska_cli config set host "0.0.0.0"
-  toska_cli config list
-  toska_cli config reset port
-  toska_cli config reset  # Reset all to defaults
+  toska config get port
+  toska config set port 8080
+  toska config set host "0.0.0.0"
+  toska config list
+  toska config reset port
+  toska config reset  # Reset all to defaults
 ```
 
 ## Configuration
 
-Configuration is stored in `~/.toska/toska_config.json` and includes:
+Configuration is stored in `~/.toska/toska_config.json` and includes defaults used by `start`.
+Set `TOSKA_CONFIG_DIR` to override the configuration directory.
 
 - **port** (integer): Server port (default: 4000)
 - **host** (string): Server host (default: "localhost")
 - **env** (string): Environment - dev|test|prod (default: "dev")
 - **log_level** (string): Log level - debug|info|warn|error (default: "info")
 
+Runtime control metadata (node/cookie) is stored in `~/.toska/toska_runtime.json`.
+
 ## Development
 
 ### Adding New Commands
 
-1. Create a new module in `lib/toska_cli/commands/` implementing the `ToskaCli.Commands.Command` behavior
-2. Add the command route in `ToskaCli.CommandParser.parse/1`
+1. Create a new module in `lib/toska/commands/` implementing the `Toska.Commands.Command` behavior
+2. Add the command route in `Toska.CommandParser.parse/1`
 3. Update help text and documentation
 
 Example command structure:
 
 ```elixir
-defmodule ToskaCli.Commands.MyCommand do
-  @behaviour ToskaCli.Commands.Command
+defmodule Toska.Commands.MyCommand do
+  @behaviour Toska.Commands.Command
   
-  alias ToskaCli.Commands.Command
+  alias Toska.Commands.Command
 
   @impl true
   def execute(args) do
@@ -191,7 +196,7 @@ end
 ### Running Tests
 
 ```bash
-cd apps/toska_cli
+cd apps/toska
 mix test
 ```
 
@@ -210,7 +215,7 @@ mix dialyzer
 
 ## Server Process Foundation
 
-The CLI includes a GenServer (`ToskaCli.Server`) that provides the foundation for the actual server process. This includes:
+The CLI includes a GenServer (`Toska.Server`) that provides the foundation for the actual server process. This includes:
 
 - Proper OTP supervision tree
 - Configuration management

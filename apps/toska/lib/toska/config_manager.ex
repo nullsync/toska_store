@@ -78,7 +78,7 @@ defmodule Toska.ConfigManager do
   Get the path to the configuration file.
   """
   def config_file_path do
-    Path.join([System.user_home(), ".toska", @config_file])
+    Path.join([config_dir(), @config_file])
   end
 
   # GenServer Callbacks
@@ -273,4 +273,12 @@ defmodule Toska.ConfigManager do
   end
 
   defp parse_value(value), do: value
+
+  defp config_dir do
+    case System.get_env("TOSKA_CONFIG_DIR") do
+      nil -> Path.join([System.user_home(), ".toska"])
+      "" -> Path.join([System.user_home(), ".toska"])
+      dir -> dir
+    end
+  end
 end
