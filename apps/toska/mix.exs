@@ -11,6 +11,7 @@ defmodule Toska.MixProject do
       lockfile: "../../mix.lock",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
+      test_coverage: [summary: [threshold: 80]],
       deps: deps(),
       escript: escript()
     ]
@@ -19,7 +20,7 @@ defmodule Toska.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger],
+      extra_applications: [:logger, :inets, :ssl],
       mod: {Toska.Application, []}
     ]
   end

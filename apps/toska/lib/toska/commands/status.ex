@@ -89,7 +89,7 @@ defmodule Toska.Commands.Status do
           node: Node.self(),
           otp_release: :erlang.system_info(:otp_release),
           elixir_version: System.version(),
-          memory_usage: :erlang.memory(),
+          memory_usage: :erlang.memory() |> Enum.into(%{}),
           process_count: :erlang.system_info(:process_count)
         },
         server_details: server_status
