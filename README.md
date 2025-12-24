@@ -27,4 +27,8 @@ curl -s http://localhost:4000/kv/hello
 - `docs/guide.md` - full install/build/config/API/CLI/development guide
 - `docs/kv-store-changes.md` - KV store change log and milestones
 
+## License
+
+MIT
+
 Tip: `./toska status` and `/health` are the fastest sanity checks.
