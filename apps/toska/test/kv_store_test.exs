@@ -88,6 +88,18 @@ defmodule Toska.KVStoreTest do
     assert {:ok, "ok"} = Toska.KVStore.get("rep")
   end
 
+  test "compaction rewrites snapshot and truncates AOF" do
+    assert :ok = Toska.KVStore.put("alpha", "1")
+
+    {:ok, aof_path} = Toska.KVStore.aof_path()
+    {:ok, snapshot_path} = Toska.KVStore.snapshot_path()
+
+    assert File.stat!(aof_path).size > 0
+    assert :ok = Toska.KVStore.compact()
+    assert File.stat!(snapshot_path).size > 0
+    assert File.stat!(aof_path).size == 0
+  end
+
   defp checksum(record) do
     record
     |> Enum.map(fn {key, value} -> [to_string(key), value] end)

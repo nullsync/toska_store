@@ -13,6 +13,8 @@ defmodule Toska.KVStore do
   @default_sync_interval_ms 1000
   @default_snapshot_interval_ms 60_000
   @default_ttl_check_interval_ms 1000
+  @default_compaction_interval_ms 300_000
+  @default_compaction_aof_bytes 10_485_760
   @default_aof_file "toska.aof"
   @default_snapshot_file "toska_snapshot.json"
   @snapshot_version 1
@@ -137,6 +139,13 @@ defmodule Toska.KVStore do
 
   def apply_replication(_), do: {:error, :invalid_replication_record}
 
+  def compact do
+    case GenServer.whereis(__MODULE__) do
+      nil -> {:error, :not_running}
+      _pid -> GenServer.call(__MODULE__, :compact)
+    end
+  end
+
   # GenServer callbacks
 
   @impl true
@@ -161,6 +170,7 @@ defmodule Toska.KVStore do
     schedule_sync(state)
     schedule_snapshot(state)
     schedule_ttl_cleanup(state)
+    schedule_compaction(state)
 
     Logger.info("KV store ready (AOF: #{config.aof_path})")
 
@@ -210,6 +220,8 @@ defmodule Toska.KVStore do
       sync_interval_ms: state.sync_interval_ms,
       snapshot_interval_ms: state.snapshot_interval_ms,
       ttl_check_interval_ms: state.ttl_check_interval_ms,
+      compaction_interval_ms: state.compaction_interval_ms,
+      compaction_aof_bytes: state.compaction_aof_bytes,
       last_snapshot_at: state.last_snapshot_at,
       last_sync_at: state.last_sync_at
     }
@@ -226,6 +238,10 @@ defmodule Toska.KVStore do
       {:error, reason} ->
         {:reply, {:error, reason}, state}
     end
+  end
+
+  def handle_call(:compact, _from, state) do
+    {:reply, :ok, maybe_compact(state, true)}
   end
 
   def handle_call(:stop, _from, state) do
@@ -328,6 +344,12 @@ defmodule Toska.KVStore do
   def handle_info(:ttl_cleanup, state) do
     cleanup_expired(now_ms())
     schedule_ttl_cleanup(state)
+    {:noreply, state}
+  end
+
+  def handle_info(:compact, state) do
+    state = maybe_compact(state, false)
+    schedule_compaction(state)
     {:noreply, state}
   end
 
@@ -558,6 +580,31 @@ defmodule Toska.KVStore do
     Process.send_after(self(), :ttl_cleanup, state.ttl_check_interval_ms)
   end
 
+  defp schedule_compaction(state) do
+    Process.send_after(self(), :compact, state.compaction_interval_ms)
+  end
+
+  defp maybe_compact(state, force) do
+    aof_bytes = file_size(state.aof_path)
+
+    if force or aof_bytes >= state.compaction_aof_bytes do
+      case write_snapshot(state.snapshot_path) do
+        {:ok, checksum} ->
+          reset_aof(%{
+            state
+            | last_snapshot_at: now_ms(),
+              last_snapshot_checksum: checksum
+          })
+
+        {:error, reason} ->
+          Logger.warning("Compaction snapshot failed: #{inspect(reason)}")
+          state
+      end
+    else
+      state
+    end
+  end
+
   defp sync_aof(state) do
     if state.aof_io do
       case :file.sync(state.aof_io) do
@@ -587,7 +634,9 @@ defmodule Toska.KVStore do
       sync_mode: @default_sync_mode,
       sync_interval_ms: @default_sync_interval_ms,
       snapshot_interval_ms: @default_snapshot_interval_ms,
-      ttl_check_interval_ms: @default_ttl_check_interval_ms
+      ttl_check_interval_ms: @default_ttl_check_interval_ms,
+      compaction_interval_ms: @default_compaction_interval_ms,
+      compaction_aof_bytes: @default_compaction_aof_bytes
     }
 
     config =
@@ -612,7 +661,9 @@ defmodule Toska.KVStore do
       sync_mode: parse_sync_mode(config["sync_mode"], defaults.sync_mode),
       sync_interval_ms: parse_int(config["sync_interval_ms"], defaults.sync_interval_ms),
       snapshot_interval_ms: parse_int(config["snapshot_interval_ms"], defaults.snapshot_interval_ms),
-      ttl_check_interval_ms: parse_int(config["ttl_check_interval_ms"], defaults.ttl_check_interval_ms)
+      ttl_check_interval_ms: parse_int(config["ttl_check_interval_ms"], defaults.ttl_check_interval_ms),
+      compaction_interval_ms: parse_int(config["compaction_interval_ms"], defaults.compaction_interval_ms),
+      compaction_aof_bytes: parse_int(config["compaction_aof_bytes"], defaults.compaction_aof_bytes)
     }
   end
 

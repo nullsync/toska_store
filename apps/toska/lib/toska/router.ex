@@ -8,8 +8,12 @@ defmodule Toska.Router do
   use Plug.Router
   require Logger
 
+  alias Toska.ConfigManager
+  alias Toska.RateLimiter
+
   plug Plug.Logger
   plug Plug.Parsers, parsers: [:json], pass: ["application/json"], json_decoder: Jason
+  plug :ensure_kv_access
   plug :match
   plug :dispatch
 
@@ -386,5 +390,161 @@ defmodule Toska.Router do
   defp maybe_put_header(conn, _key, nil), do: conn
   defp maybe_put_header(conn, key, value) do
     put_resp_header(conn, key, to_string(value))
+  end
+
+  defp ensure_kv_access(conn, _opts) do
+    if kv_path?(conn.request_path) do
+      conn
+      |> ensure_auth()
+      |> ensure_rate_limit()
+      |> ensure_read_only()
+    else
+      conn
+    end
+  end
+
+  defp ensure_auth(%Plug.Conn{halted: true} = conn), do: conn
+  defp ensure_auth(conn) do
+    token = auth_token()
+
+    if token == "" do
+      conn
+    else
+      header = get_req_header(conn, "authorization") |> List.first()
+      alt_header = get_req_header(conn, "x-toska-token") |> List.first()
+
+      if token_match?(token, header) or token_match?(token, alt_header) do
+        conn
+      else
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(401, Jason.encode!(%{error: "Unauthorized"}))
+        |> halt()
+      end
+    end
+  end
+
+  defp ensure_rate_limit(%Plug.Conn{halted: true} = conn), do: conn
+  defp ensure_rate_limit(conn) do
+    {per_sec, burst} = rate_limit_config()
+
+    if RateLimiter.allowed?(client_key(conn), per_sec, burst) do
+      conn
+    else
+      conn
+      |> put_resp_content_type("application/json")
+      |> send_resp(429, Jason.encode!(%{error: "Rate limit exceeded"}))
+      |> halt()
+    end
+  end
+
+  defp ensure_read_only(%Plug.Conn{halted: true} = conn), do: conn
+  defp ensure_read_only(conn) do
+    if follower_mode?() and write_request?(conn) do
+      conn
+      |> put_resp_content_type("application/json")
+      |> send_resp(403, Jason.encode!(%{error: "Read-only follower"}))
+      |> halt()
+    else
+      conn
+    end
+  end
+
+  defp kv_path?(path) do
+    String.starts_with?(path, "/kv") or path == "/stats"
+  end
+
+  defp write_request?(conn) do
+    method = conn.method
+    path = conn.request_path
+
+    method in ["PUT", "DELETE"] and String.starts_with?(path, "/kv/")
+  end
+
+  defp follower_mode? do
+    env = System.get_env("TOSKA_REPLICA_URL")
+
+    if is_binary(env) and env != "" do
+      true
+    else
+      case GenServer.whereis(ConfigManager) do
+        nil -> false
+        _pid ->
+          case ConfigManager.list() do
+            {:ok, config} ->
+              url = config["replica_url"]
+              is_binary(url) and url != ""
+
+            _ ->
+              false
+          end
+      end
+    end
+  end
+
+  defp auth_token do
+    env = System.get_env("TOSKA_AUTH_TOKEN")
+
+    cond do
+      is_binary(env) and env != "" ->
+        env
+
+      true ->
+        case GenServer.whereis(ConfigManager) do
+          nil -> ""
+          _pid ->
+            case ConfigManager.list() do
+              {:ok, config} -> config["auth_token"] || ""
+              _ -> ""
+            end
+        end
+    end
+  end
+
+  defp token_match?(_token, nil), do: false
+  defp token_match?(token, header) when is_binary(header) do
+    header == token or header == "Bearer #{token}"
+  end
+  defp token_match?(_token, _header), do: false
+
+  defp rate_limit_config do
+    env_per = System.get_env("TOSKA_RATE_LIMIT_PER_SEC")
+    env_burst = System.get_env("TOSKA_RATE_LIMIT_BURST")
+
+    config =
+      case GenServer.whereis(ConfigManager) do
+        nil -> %{}
+        _pid ->
+          case ConfigManager.list() do
+            {:ok, stored} -> stored
+            _ -> %{}
+          end
+      end
+
+    per_sec = parse_int(env_per, config["rate_limit_per_sec"], 0)
+    burst = parse_int(env_burst, config["rate_limit_burst"], 0)
+
+    {per_sec, burst}
+  end
+
+  defp parse_int(nil, nil, default), do: default
+  defp parse_int(nil, value, default), do: parse_int(value, default)
+  defp parse_int(value, _default, default), do: parse_int(value, default)
+
+  defp parse_int(value, _default) when is_integer(value) and value >= 0, do: value
+  defp parse_int(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int >= 0 -> int
+      _ -> default
+    end
+  end
+  defp parse_int(_, default), do: default
+
+  defp client_key(conn) do
+    case conn.remote_ip do
+      {_, _, _, _} = ip -> to_string(:inet.ntoa(ip))
+      {_, _, _, _, _, _, _, _} = ip -> to_string(:inet.ntoa(ip))
+      _ -> "unknown"
+    end
   end
 end

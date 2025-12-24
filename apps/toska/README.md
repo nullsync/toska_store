@@ -176,6 +176,11 @@ When the server is running, the HTTP API provides a simple JSON key/value store:
 - `GET /replication/status` - Follower status
 
 Follower mode is enabled by setting `replica_url` (or `TOSKA_REPLICA_URL`) and starting the server.
+When follower mode is enabled, KV write endpoints (`PUT`/`DELETE`) return `403` to enforce read-only access.
+
+KV endpoints (`/kv/*` and `/stats`) can require an auth token and apply rate limits:
+- `auth_token` (or `TOSKA_AUTH_TOKEN`) expects `Authorization: Bearer <token>` or `X-Toska-Token`.
+- `rate_limit_per_sec` + `rate_limit_burst` (or `TOSKA_RATE_LIMIT_PER_SEC`, `TOSKA_RATE_LIMIT_BURST`).
 
 ## Configuration
 
@@ -194,9 +199,14 @@ Set `TOSKA_DATA_DIR` to override the data directory for AOF/snapshot files.
 - **sync_interval_ms** (integer): AOF sync interval (default: 1000)
 - **snapshot_interval_ms** (integer): Snapshot interval (default: 60000)
 - **ttl_check_interval_ms** (integer): TTL cleanup interval (default: 1000)
+- **compaction_interval_ms** (integer): AOF compaction interval (default: 300000)
+- **compaction_aof_bytes** (integer): AOF size threshold for compaction (default: 10485760)
 - **replica_url** (string): Leader URL for follower replication (default: empty)
 - **replica_poll_interval_ms** (integer): Follower poll interval (default: 1000)
 - **replica_http_timeout_ms** (integer): Follower HTTP timeout (default: 5000)
+- **auth_token** (string): Bearer token for KV endpoints (default: empty)
+- **rate_limit_per_sec** (integer): Requests per second limit (default: 0, disabled)
+- **rate_limit_burst** (integer): Burst capacity for rate limiting (default: 0, disabled)
 
 Runtime control metadata (node/cookie) is stored in `~/.toska/toska_runtime.json`.
 Daemon logs are written to `~/.toska/toska_daemon.log`.

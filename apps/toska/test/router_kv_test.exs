@@ -7,13 +7,22 @@ defmodule Toska.RouterKVTest do
 
   setup do
     original_data_dir = System.get_env("TOSKA_DATA_DIR")
+    original_auth_token = System.get_env("TOSKA_AUTH_TOKEN")
+    original_rate_limit_per = System.get_env("TOSKA_RATE_LIMIT_PER_SEC")
+    original_rate_limit_burst = System.get_env("TOSKA_RATE_LIMIT_BURST")
+    original_replica_url = System.get_env("TOSKA_REPLICA_URL")
     tmp_dir = Path.join([System.tmp_dir!(), "toska_router_#{System.unique_integer([:positive])}"])
 
     File.mkdir_p!(tmp_dir)
     System.put_env("TOSKA_DATA_DIR", tmp_dir)
+    System.delete_env("TOSKA_AUTH_TOKEN")
+    System.delete_env("TOSKA_RATE_LIMIT_PER_SEC")
+    System.delete_env("TOSKA_RATE_LIMIT_BURST")
+    System.delete_env("TOSKA_REPLICA_URL")
 
     stop_store()
     start_store()
+    Toska.RateLimiter.reset()
 
     on_exit(fn ->
       stop_store()
@@ -22,6 +31,11 @@ defmodule Toska.RouterKVTest do
         nil -> System.delete_env("TOSKA_DATA_DIR")
         value -> System.put_env("TOSKA_DATA_DIR", value)
       end
+
+      restore_env("TOSKA_AUTH_TOKEN", original_auth_token)
+      restore_env("TOSKA_RATE_LIMIT_PER_SEC", original_rate_limit_per)
+      restore_env("TOSKA_RATE_LIMIT_BURST", original_rate_limit_burst)
+      restore_env("TOSKA_REPLICA_URL", original_replica_url)
 
       File.rm_rf(tmp_dir)
     end)
@@ -73,6 +87,58 @@ defmodule Toska.RouterKVTest do
     assert is_nil(values["c"])
   end
 
+  test "auth token enforces KV access" do
+    System.put_env("TOSKA_AUTH_TOKEN", "secret")
+
+    unauthorized_conn =
+      conn("GET", "/kv/auth")
+      |> Toska.Router.call(@opts)
+
+    assert unauthorized_conn.status == 401
+
+    authorized_conn =
+      conn("GET", "/kv/auth")
+      |> put_req_header("authorization", "Bearer secret")
+      |> Toska.Router.call(@opts)
+
+    assert authorized_conn.status in [200, 404]
+  end
+
+  test "rate limiter blocks after burst is exceeded" do
+    System.put_env("TOSKA_RATE_LIMIT_PER_SEC", "1")
+    System.put_env("TOSKA_RATE_LIMIT_BURST", "1")
+    Toska.RateLimiter.reset()
+
+    first_conn =
+      conn("GET", "/kv/limit")
+      |> Toska.Router.call(@opts)
+
+    assert first_conn.status in [200, 404]
+
+    second_conn =
+      conn("GET", "/kv/limit")
+      |> Toska.Router.call(@opts)
+
+    assert second_conn.status == 429
+  end
+
+  test "follower mode blocks KV writes" do
+    System.put_env("TOSKA_REPLICA_URL", "http://leader:4000")
+
+    write_conn =
+      conn("PUT", "/kv/readonly", Jason.encode!(%{value: "x"}))
+      |> put_req_header("content-type", "application/json")
+      |> Toska.Router.call(@opts)
+
+    assert write_conn.status == 403
+
+    read_conn =
+      conn("GET", "/kv/readonly")
+      |> Toska.Router.call(@opts)
+
+    assert read_conn.status in [200, 404]
+  end
+
   test "replication endpoints return data" do
     :ok = Toska.KVStore.put("replica", "ok")
 
@@ -108,6 +174,9 @@ defmodule Toska.RouterKVTest do
       assert aof_conn.resp_body =~ "\"op\""
     end
   end
+
+  defp restore_env(key, nil), do: System.delete_env(key)
+  defp restore_env(key, value), do: System.put_env(key, value)
 
   defp stop_store do
     case GenServer.whereis(Toska.KVStore) do

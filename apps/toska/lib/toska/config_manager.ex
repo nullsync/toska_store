@@ -252,6 +252,12 @@ defmodule Toska.ConfigManager do
       "ttl_check_interval_ms" ->
         validate_positive_int(value)
 
+      "compaction_interval_ms" ->
+        validate_positive_int(value)
+
+      "compaction_aof_bytes" ->
+        validate_positive_int(value)
+
       "replica_url" ->
         validate_optional_string(value)
 
@@ -260,6 +266,15 @@ defmodule Toska.ConfigManager do
 
       "replica_http_timeout_ms" ->
         validate_positive_int(value)
+
+      "auth_token" ->
+        validate_optional_string(value)
+
+      "rate_limit_per_sec" ->
+        validate_nonnegative_int(value)
+
+      "rate_limit_burst" ->
+        validate_nonnegative_int(value)
 
       _ ->
         # Allow unknown keys for extensibility
@@ -325,6 +340,15 @@ defmodule Toska.ConfigManager do
   defp validate_optional_string(nil), do: {:ok, nil}
   defp validate_optional_string(_), do: {:error, "Value must be a string or empty"}
 
+  defp validate_nonnegative_int(value) when is_integer(value) and value >= 0, do: {:ok, value}
+  defp validate_nonnegative_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int >= 0 -> {:ok, int}
+      _ -> {:error, "Value must be a non-negative integer"}
+    end
+  end
+  defp validate_nonnegative_int(_), do: {:error, "Value must be a non-negative integer"}
+
   defp parse_value(value) when is_binary(value) do
     # Try to parse as integer first
     case Integer.parse(value) do
@@ -350,9 +374,14 @@ defmodule Toska.ConfigManager do
       "sync_interval_ms" => @default_sync_interval_ms,
       "snapshot_interval_ms" => @default_snapshot_interval_ms,
       "ttl_check_interval_ms" => @default_ttl_check_interval_ms,
+      "compaction_interval_ms" => 300_000,
+      "compaction_aof_bytes" => 10_485_760,
       "replica_url" => "",
       "replica_poll_interval_ms" => 1000,
-      "replica_http_timeout_ms" => 5000
+      "replica_http_timeout_ms" => 5000,
+      "auth_token" => "",
+      "rate_limit_per_sec" => 0,
+      "rate_limit_burst" => 0
     }
   end
 end

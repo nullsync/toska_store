@@ -77,9 +77,14 @@ defmodule Toska.Commands.Config do
       sync_interval_ms AOF sync interval (milliseconds)
       snapshot_interval_ms Snapshot interval (milliseconds)
       ttl_check_interval_ms TTL cleanup interval (milliseconds)
+      compaction_interval_ms AOF compaction interval (milliseconds)
+      compaction_aof_bytes AOF size threshold for compaction (bytes)
       replica_url Leader URL for replication follower
       replica_poll_interval_ms Follower poll interval (milliseconds)
       replica_http_timeout_ms Follower HTTP timeout (milliseconds)
+      auth_token Bearer token for KV endpoints (empty disables auth)
+      rate_limit_per_sec Requests per second rate limit (0 disables)
+      rate_limit_burst Burst capacity for rate limiting (0 disables)
     """)
 
     :ok

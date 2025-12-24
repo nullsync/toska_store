@@ -350,6 +350,14 @@ Set `replica_url` (or `TOSKA_REPLICA_URL`) to run the server as a follower that 
 ```
 
 Follower offsets persist to `replica.offset` in the data directory.
+When follower mode is enabled, KV write endpoints (`PUT`/`DELETE`) return `403` to enforce read-only access.
+
+### KV Access Controls
+
+You can enable simple auth and rate limiting for the KV endpoints (`/kv/*` and `/stats`):
+
+- `auth_token` (or `TOSKA_AUTH_TOKEN`) requires a matching `Authorization: Bearer <token>` or `X-Toska-Token` header.
+- `rate_limit_per_sec` + `rate_limit_burst` (or `TOSKA_RATE_LIMIT_PER_SEC`, `TOSKA_RATE_LIMIT_BURST`) apply a token-bucket limit by client IP.
 
 ### GET `/kv/:key`
 **Get Value** - Fetch a value by key
@@ -442,9 +450,14 @@ Set `TOSKA_CONFIG_DIR` to override the configuration directory used for `toska_c
 - **sync_interval_ms** - AOF sync interval (default: 1000)
 - **snapshot_interval_ms** - Snapshot interval (default: 60000)
 - **ttl_check_interval_ms** - TTL cleanup interval (default: 1000)
+- **compaction_interval_ms** - AOF compaction interval (default: 300000)
+- **compaction_aof_bytes** - AOF size threshold for compaction (default: 10485760)
 - **replica_url** - Leader URL for follower replication (default: empty)
 - **replica_poll_interval_ms** - Follower poll interval (default: 1000)
 - **replica_http_timeout_ms** - Follower HTTP timeout (default: 5000)
+- **auth_token** - Bearer token for KV endpoints (default: empty)
+- **rate_limit_per_sec** - Requests per second limit (default: 0, disabled)
+- **rate_limit_burst** - Burst capacity for rate limiting (default: 0, disabled)
 
 Snapshots include a checksum and version field. AOF records include per-line checksums for integrity.
 
@@ -489,6 +502,9 @@ The application respects the following environment variables:
 - `TOSKA_REPLICA_URL` - Leader URL for replication follower
 - `TOSKA_REPLICA_POLL_MS` - Override follower poll interval
 - `TOSKA_REPLICA_HTTP_TIMEOUT_MS` - Override follower HTTP timeout
+- `TOSKA_AUTH_TOKEN` - Require auth token for KV endpoints
+- `TOSKA_RATE_LIMIT_PER_SEC` - Requests per second limit
+- `TOSKA_RATE_LIMIT_BURST` - Burst capacity for rate limiting
 
 ### Benchmarking
 

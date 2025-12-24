@@ -14,6 +14,8 @@ This document summarizes the key/value store work added to Toska.
 - Added a `toska replicate` CLI command with daemon support.
 - Added follower offset persistence and replication status endpoint (`/replication/status`).
 - Expanded configuration defaults, validation, and documentation.
+- Added AOF compaction thresholds/intervals with manual `compact` support.
+- Added KV auth token + rate limiting and read-only enforcement in follower mode.
 
 ## Core Storage
 
