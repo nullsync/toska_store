@@ -24,8 +24,8 @@ curl -s http://localhost:4000/kv/hello
 
 ## Docs
 
-- `docs/guide.md` - full install/build/config/API/CLI/development guide
-- `docs/kv-store-changes.md` - KV store change log and milestones
+- [docs/guide.md](docs/guide.md) - full install/build/config/API/CLI/development guide
+- [docs/kv-store-changes.md](docs/kv-store-changes.md) - KV store change log and milestones
 
 ## License
 
