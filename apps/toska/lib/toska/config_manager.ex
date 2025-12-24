@@ -11,12 +11,9 @@ defmodule Toska.ConfigManager do
 
   @name __MODULE__
   @config_file "toska_config.json"
-  @default_config %{
-    "port" => 4000,
-    "host" => "localhost",
-    "env" => "dev",
-    "log_level" => "info"
-  }
+  @default_sync_interval_ms 1000
+  @default_snapshot_interval_ms 60_000
+  @default_ttl_check_interval_ms 1000
 
   # Client API
 
@@ -81,6 +78,14 @@ defmodule Toska.ConfigManager do
     Path.join([config_dir(), @config_file])
   end
 
+  def config_dir do
+    case System.get_env("TOSKA_CONFIG_DIR") do
+      nil -> Path.join([System.user_home(), ".toska"])
+      "" -> Path.join([System.user_home(), ".toska"])
+      dir -> dir
+    end
+  end
+
   # GenServer Callbacks
 
   @impl true
@@ -141,7 +146,7 @@ defmodule Toska.ConfigManager do
 
   @impl true
   def handle_call({:reset, key}, _from, state) do
-    case Map.get(@default_config, key) do
+    case Map.get(default_config(), key) do
       nil ->
         {:reply, {:error, :unknown_key}, state}
 
@@ -162,7 +167,7 @@ defmodule Toska.ConfigManager do
 
   @impl true
   def handle_call(:reset_all, _from, state) do
-    new_state = %{state | config: @default_config}
+    new_state = %{state | config: default_config()}
 
     case save_config(new_state.config, state.file_path) do
       :ok ->
@@ -177,26 +182,28 @@ defmodule Toska.ConfigManager do
   # Private Functions
 
   defp load_config(file_path) do
+    default = default_config()
+
     case File.read(file_path) do
       {:ok, content} ->
         case Jason.decode(content) do
           {:ok, config} ->
             # Merge with defaults to ensure all keys are present
-            Map.merge(@default_config, config)
+            Map.merge(default, config)
 
           {:error, reason} ->
             Logger.warning("Failed to parse config file, using defaults: #{inspect(reason)}")
-            @default_config
+            default
         end
 
       {:error, :enoent} ->
         Logger.info("Config file not found, creating with defaults")
-        save_config(@default_config, file_path)
-        @default_config
+        save_config(default, file_path)
+        default
 
       {:error, reason} ->
         Logger.warning("Failed to read config file, using defaults: #{inspect(reason)}")
-        @default_config
+        default
     end
   end
 
@@ -223,6 +230,36 @@ defmodule Toska.ConfigManager do
 
       "log_level" ->
         validate_log_level(value)
+
+      "data_dir" ->
+        validate_path(value)
+
+      "aof_file" ->
+        validate_path(value)
+
+      "snapshot_file" ->
+        validate_path(value)
+
+      "sync_mode" ->
+        validate_sync_mode(value)
+
+      "sync_interval_ms" ->
+        validate_positive_int(value)
+
+      "snapshot_interval_ms" ->
+        validate_positive_int(value)
+
+      "ttl_check_interval_ms" ->
+        validate_positive_int(value)
+
+      "replica_url" ->
+        validate_optional_string(value)
+
+      "replica_poll_interval_ms" ->
+        validate_positive_int(value)
+
+      "replica_http_timeout_ms" ->
+        validate_positive_int(value)
 
       _ ->
         # Allow unknown keys for extensibility
@@ -264,6 +301,30 @@ defmodule Toska.ConfigManager do
 
   defp validate_log_level(_), do: {:error, "Log level must be one of: debug, info, warn, error"}
 
+  defp validate_sync_mode(value) when value in ["always", "interval", "none"] do
+    {:ok, value}
+  end
+
+  defp validate_sync_mode(_), do: {:error, "Sync mode must be one of: always, interval, none"}
+
+  defp validate_positive_int(value) when is_integer(value) and value > 0, do: {:ok, value}
+  defp validate_positive_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int > 0 -> {:ok, int}
+      _ -> {:error, "Value must be a positive integer"}
+    end
+  end
+  defp validate_positive_int(_), do: {:error, "Value must be a positive integer"}
+
+  defp validate_path(value) when is_binary(value) and byte_size(value) > 0 do
+    {:ok, value}
+  end
+  defp validate_path(_), do: {:error, "Value must be a non-empty string"}
+
+  defp validate_optional_string(value) when is_binary(value), do: {:ok, value}
+  defp validate_optional_string(nil), do: {:ok, nil}
+  defp validate_optional_string(_), do: {:error, "Value must be a string or empty"}
+
   defp parse_value(value) when is_binary(value) do
     # Try to parse as integer first
     case Integer.parse(value) do
@@ -274,11 +335,24 @@ defmodule Toska.ConfigManager do
 
   defp parse_value(value), do: value
 
-  defp config_dir do
-    case System.get_env("TOSKA_CONFIG_DIR") do
-      nil -> Path.join([System.user_home(), ".toska"])
-      "" -> Path.join([System.user_home(), ".toska"])
-      dir -> dir
-    end
+  defp default_config do
+    base_dir = config_dir()
+
+    %{
+      "port" => 4000,
+      "host" => "localhost",
+      "env" => "dev",
+      "log_level" => "info",
+      "data_dir" => Path.join([base_dir, "data"]),
+      "aof_file" => "toska.aof",
+      "snapshot_file" => "toska_snapshot.json",
+      "sync_mode" => "interval",
+      "sync_interval_ms" => @default_sync_interval_ms,
+      "snapshot_interval_ms" => @default_snapshot_interval_ms,
+      "ttl_check_interval_ms" => @default_ttl_check_interval_ms,
+      "replica_url" => "",
+      "replica_poll_interval_ms" => 1000,
+      "replica_http_timeout_ms" => 5000
+    }
   end
 end

@@ -41,6 +41,9 @@ defmodule Toska.CommandParser do
       ["config" | rest] ->
         Commands.Config.execute(rest)
 
+      ["replicate" | rest] ->
+        Commands.Replicate.execute(rest)
+
       [command | _] ->
         IO.puts("Unknown command: #{command}")
         show_help()
@@ -63,6 +66,7 @@ defmodule Toska.CommandParser do
       stop      Stop the Toska server
       status    Check server status
       config    Manage configuration
+      replicate Start replication follower
 
     Global Options:
       -h, --help    Show this help message
@@ -73,6 +77,7 @@ defmodule Toska.CommandParser do
       toska status
       toska config get port
       toska config set port 9000
+      toska replicate --leader http://localhost:4000
 
     For command-specific help, use:
       toska [command] --help

@@ -9,7 +9,10 @@ defmodule Toska.Server do
   use GenServer
   require Logger
 
+  alias Toska.ConfigManager
+  alias Toska.KVStore
   alias Toska.NodeControl
+  alias Toska.Replication.Follower
 
   @name __MODULE__
   @http_server_name :"#{__MODULE__}.HTTPServer"
@@ -133,16 +136,18 @@ defmodule Toska.Server do
   def init(state) do
     Logger.info("Initializing Toska server with config: #{inspect(state)}")
 
-    # Start the HTTP server using Bandit
-    case start_http_server(state) do
-      {:ok, bandit_pid} ->
-        Logger.info("HTTP server started successfully on #{state.host}:#{state.port}")
-        Process.send_after(self(), :server_ready, 500)
-        {:ok, Map.merge(state, %{status: :starting, bandit_pid: bandit_pid})}
+    case KVStore.start_link() do
+      {:ok, store_pid} ->
+        start_replication_follower()
+        start_http_and_set_state(state, store_pid)
+
+      {:error, {:already_started, store_pid}} ->
+        start_replication_follower()
+        start_http_and_set_state(state, store_pid)
 
       {:error, reason} ->
-        Logger.error("Failed to start HTTP server: #{inspect(reason)}")
-        {:stop, {:http_server_failed, reason}}
+        Logger.error("Failed to start KV store: #{inspect(reason)}")
+        {:stop, {:kv_store_failed, reason}}
     end
   end
 
@@ -198,6 +203,11 @@ defmodule Toska.Server do
       stop_http_server()
     end
 
+    case GenServer.whereis(KVStore) do
+      nil -> :ok
+      _pid -> KVStore.stop()
+    end
+
     NodeControl.clear_runtime()
     :ok
   end
@@ -222,6 +232,71 @@ defmodule Toska.Server do
         {:error, reason}
     end
   end
+
+  defp start_http_and_set_state(state, store_pid) do
+    case start_http_server(state) do
+      {:ok, bandit_pid} ->
+        Logger.info("HTTP server started successfully on #{state.host}:#{state.port}")
+        Process.send_after(self(), :server_ready, 500)
+        {:ok, Map.merge(state, %{status: :starting, bandit_pid: bandit_pid, store_pid: store_pid})}
+
+      {:error, reason} ->
+        Logger.error("Failed to start HTTP server: #{inspect(reason)}")
+        {:stop, {:http_server_failed, reason}}
+    end
+  end
+
+  defp start_replication_follower do
+    case replication_options() do
+      nil ->
+        :ok
+
+      opts ->
+        case Follower.start_link(opts) do
+          {:ok, _pid} -> :ok
+          {:error, {:already_started, _pid}} -> :ok
+          {:error, reason} ->
+            Logger.warning("Replication follower failed to start: #{inspect(reason)}")
+        end
+    end
+  end
+
+  defp replication_options do
+    config =
+      case GenServer.whereis(ConfigManager) do
+        nil -> %{}
+        _pid ->
+          case ConfigManager.list() do
+            {:ok, stored} -> stored
+            _ -> %{}
+          end
+      end
+
+    url = System.get_env("TOSKA_REPLICA_URL") || config["replica_url"]
+
+    if is_binary(url) and url != "" do
+      [
+        leader_url: url,
+        poll_interval_ms: parse_int(System.get_env("TOSKA_REPLICA_POLL_MS"), config["replica_poll_interval_ms"], 1000),
+        http_timeout_ms: parse_int(System.get_env("TOSKA_REPLICA_HTTP_TIMEOUT_MS"), config["replica_http_timeout_ms"], 5000)
+      ]
+    else
+      nil
+    end
+  end
+
+  defp parse_int(nil, nil, default), do: default
+  defp parse_int(nil, value, default), do: parse_int(value, default)
+  defp parse_int(value, _default, default), do: parse_int(value, default)
+
+  defp parse_int(value, _default) when is_integer(value) and value > 0, do: value
+  defp parse_int(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int > 0 -> int
+      _ -> default
+    end
+  end
+  defp parse_int(_, default), do: default
 
   defp stop_http_server do
     case Process.whereis(@http_server_name) do

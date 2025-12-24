@@ -70,6 +70,16 @@ defmodule Toska.Commands.Config do
       host        Server host (string)
       env         Environment (dev|test|prod)
       log_level   Log level (debug|info|warn|error)
+      data_dir    Data directory for KV store files
+      aof_file    Append-only log filename (relative to data_dir)
+      snapshot_file Snapshot filename (relative to data_dir)
+      sync_mode   AOF sync mode (always|interval|none)
+      sync_interval_ms AOF sync interval (milliseconds)
+      snapshot_interval_ms Snapshot interval (milliseconds)
+      ttl_check_interval_ms TTL cleanup interval (milliseconds)
+      replica_url Leader URL for replication follower
+      replica_poll_interval_ms Follower poll interval (milliseconds)
+      replica_http_timeout_ms Follower HTTP timeout (milliseconds)
     """)
 
     :ok

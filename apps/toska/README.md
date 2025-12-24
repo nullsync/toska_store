@@ -151,17 +151,55 @@ Examples:
   toska config reset  # Reset all to defaults
 ```
 
+### replicate
+
+Start a replication follower for a leader URL.
+
+```bash
+toska replicate start --leader http://localhost:4000
+toska replicate --leader http://localhost:4000 --poll 2000 --timeout 5000
+toska replicate --leader http://localhost:4000 --daemon
+```
+
+## HTTP API
+
+When the server is running, the HTTP API provides a simple JSON key/value store:
+
+- `GET /kv/:key` - Fetch a value by key
+- `PUT /kv/:key` - Set a value with optional `ttl_ms` (`{"value": "...", "ttl_ms": 5000}`)
+- `DELETE /kv/:key` - Remove a key
+- `POST /kv/mget` - Fetch multiple keys (`{"keys": ["a", "b"]}`)
+- `GET /stats` - Store metrics and persistence info
+- `GET /replication/info` - Snapshot + AOF metadata for followers
+- `GET /replication/snapshot` - JSON snapshot file
+- `GET /replication/aof?since=0` - AOF stream from a byte offset
+
+Follower mode is enabled by setting `replica_url` (or `TOSKA_REPLICA_URL`) and starting the server.
+
 ## Configuration
 
 Configuration is stored in `~/.toska/toska_config.json` and includes defaults used by `start`.
 Set `TOSKA_CONFIG_DIR` to override the configuration directory.
+Set `TOSKA_DATA_DIR` to override the data directory for AOF/snapshot files.
 
 - **port** (integer): Server port (default: 4000)
 - **host** (string): Server host (default: "localhost")
 - **env** (string): Environment - dev|test|prod (default: "dev")
 - **log_level** (string): Log level - debug|info|warn|error (default: "info")
+- **data_dir** (string): Data directory for AOF/snapshots (default: `~/.toska/data`)
+- **aof_file** (string): AOF filename (default: `toska.aof`)
+- **snapshot_file** (string): Snapshot filename (default: `toska_snapshot.json`)
+- **sync_mode** (string): AOF sync mode (always|interval|none, default: interval)
+- **sync_interval_ms** (integer): AOF sync interval (default: 1000)
+- **snapshot_interval_ms** (integer): Snapshot interval (default: 60000)
+- **ttl_check_interval_ms** (integer): TTL cleanup interval (default: 1000)
+- **replica_url** (string): Leader URL for follower replication (default: empty)
+- **replica_poll_interval_ms** (integer): Follower poll interval (default: 1000)
+- **replica_http_timeout_ms** (integer): Follower HTTP timeout (default: 5000)
 
 Runtime control metadata (node/cookie) is stored in `~/.toska/toska_runtime.json`.
+Daemon logs are written to `~/.toska/toska_daemon.log`.
+Snapshots include checksums; AOF records include per-line checksums.
 
 ## Development
 

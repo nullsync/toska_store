@@ -257,6 +257,16 @@ Check the current status of the Toska server:
 - `-j, --json` - Output status in JSON format
 - `-h, --help` - Show command help
 
+### Replication Follower
+
+Start a replication follower for a leader URL:
+
+```bash
+./apps/toska/toska replicate start --leader http://localhost:4000
+./apps/toska/toska replicate --leader http://localhost:4000 --poll 2000 --timeout 5000
+./apps/toska/toska replicate --leader http://localhost:4000 --daemon
+```
+
 ## HTTP Endpoints
 
 When the server is running, the following HTTP endpoints are available:
@@ -301,6 +311,59 @@ When the server is running, the following HTTP endpoints are available:
   }
   ```
 
+### GET `/stats`
+**KV Store Stats** - JSON endpoint returning key/value store stats
+- **Response**: JSON object with storage metrics and persistence info
+- **Status Code**: 200
+
+### GET `/replication/info`
+**Replication Info** - JSON metadata for followers
+- **Response**: snapshot + AOF metadata with versions and checksums
+- **Status Code**: 200
+
+### GET `/replication/snapshot`
+**Replication Snapshot** - JSON snapshot file for followers
+- **Response**: snapshot JSON with checksum
+- **Status Code**: 200
+
+### GET `/replication/aof?since=<offset>`
+**Replication AOF Stream** - Append-only log content from a byte offset
+- **Response**: AOF bytes (JSON lines)
+- **Status Codes**:
+  - 200 (data)
+  - 204 (no new data)
+  - 400 (invalid offset)
+
+### Follower Mode
+
+Set `replica_url` (or `TOSKA_REPLICA_URL`) to run the server as a follower that keeps a local read replica:
+
+```bash
+./apps/toska/toska config set replica_url http://leader:4000
+./apps/toska/toska start
+```
+
+### GET `/kv/:key`
+**Get Value** - Fetch a value by key
+- **Response**: JSON object with `key` and `value`
+- **Status Codes**:
+  - 200 (found)
+  - 404 (not found)
+
+### PUT `/kv/:key`
+**Set Value** - Set a key/value pair with optional TTL
+- **Body**: `{"value": "string", "ttl_ms": 5000}` (ttl optional)
+- **Status Code**: 200
+
+### DELETE `/kv/:key`
+**Delete Value** - Remove a key
+- **Status Code**: 200
+
+### POST `/kv/mget`
+**Get Multiple Values** - Fetch multiple keys at once
+- **Body**: `{"keys": ["a", "b"]}`
+- **Response**: `{"values": {"a": "value", "b": null}}`
+
 ## Configuration Management
 
 ToskaStore provides comprehensive configuration management through the CLI:
@@ -336,6 +399,12 @@ Set `TOSKA_CONFIG_DIR` to override the configuration directory used for `toska_c
 
 # Set log level
 ./apps/toska/toska config set log_level info
+
+# Set data directory
+./apps/toska/toska config set data_dir "/var/lib/toska"
+
+# Set snapshot interval
+./apps/toska/toska config set snapshot_interval_ms 60000
 ```
 
 ### Reset Configuration
@@ -358,6 +427,18 @@ Set `TOSKA_CONFIG_DIR` to override the configuration directory used for `toska_c
 - **host** - Server host (string, default: "localhost")
 - **env** - Environment (dev|test|prod, default: "dev")
 - **log_level** - Log level (debug|info|warn|error, default: "info")
+- **data_dir** - Data directory for AOF/snapshots (default: `~/.toska/data`)
+- **aof_file** - AOF filename (default: `toska.aof`)
+- **snapshot_file** - Snapshot filename (default: `toska_snapshot.json`)
+- **sync_mode** - AOF sync mode (always|interval|none, default: interval)
+- **sync_interval_ms** - AOF sync interval (default: 1000)
+- **snapshot_interval_ms** - Snapshot interval (default: 60000)
+- **ttl_check_interval_ms** - TTL cleanup interval (default: 1000)
+- **replica_url** - Leader URL for follower replication (default: empty)
+- **replica_poll_interval_ms** - Follower poll interval (default: 1000)
+- **replica_http_timeout_ms** - Follower HTTP timeout (default: 5000)
+
+Snapshots include a checksum and version field. AOF records include per-line checksums for integrity.
 
 Runtime control metadata is stored in `~/.toska/toska_runtime.json`.
 
@@ -395,6 +476,23 @@ The application respects the following environment variables:
 
 - `MIX_ENV` - Set the Mix environment (dev, test, prod)
 - `PORT` - Override default port (when used programmatically)
+- `TOSKA_CONFIG_DIR` - Override config directory for `toska_config.json`
+- `TOSKA_DATA_DIR` - Override data directory for AOF/snapshot files
+- `TOSKA_REPLICA_URL` - Leader URL for replication follower
+- `TOSKA_REPLICA_POLL_MS` - Override follower poll interval
+- `TOSKA_REPLICA_HTTP_TIMEOUT_MS` - Override follower HTTP timeout
+
+### Benchmarking
+
+A basic benchmark script is available in `scripts/bench_kv.exs`:
+
+```bash
+TOSKA_BENCH_URL=http://localhost:4000 \
+TOSKA_BENCH_OPS=10000 \
+TOSKA_BENCH_CONCURRENCY=20 \
+TOSKA_BENCH_MODE=mixed \
+mix run scripts/bench_kv.exs
+```
 
 ### Code Organization
 
