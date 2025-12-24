@@ -224,6 +224,29 @@ defmodule Toska.Router do
     end
   end
 
+  # GET /kv/keys - list keys (optional prefix/limit)
+  get "/kv/keys" do
+    prefix = conn.params["prefix"] || ""
+    limit = parse_int(conn.params["limit"], 100)
+
+    case Toska.KVStore.list_keys(prefix, limit) do
+      {:ok, keys} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(200, Jason.encode!(%{keys: keys}))
+
+      {:error, :invalid_prefix} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(400, Jason.encode!(%{error: "Invalid prefix"}))
+
+      {:error, reason} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(503, Jason.encode!(%{error: "KV store unavailable", reason: inspect(reason)}))
+    end
+  end
+
   # GET /kv/:key - fetch value
   get "/kv/:key" do
     case Toska.KVStore.get(key) do

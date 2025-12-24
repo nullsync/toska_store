@@ -81,6 +81,50 @@ defmodule Toska.KVStore do
 
   def mget(_), do: {:error, :invalid_keys}
 
+  def list_keys(prefix \\ "", limit \\ 100)
+  def list_keys(prefix, limit) when is_binary(prefix) and is_integer(limit) and limit >= 0 do
+    case :ets.whereis(@table) do
+      :undefined ->
+        {:error, :not_running}
+
+      _ ->
+        if limit == 0 do
+          {:ok, []}
+        else
+          now = now_ms()
+          match_spec = [{{:"$1", :_, :"$2"}, [], [{{:"$1", :"$2"}}]}]
+
+          {keys, _count} =
+            :ets.select(@table, match_spec)
+            |> Enum.reduce_while({[], 0}, fn {key, expires_at}, {acc, count} ->
+              if expired?(expires_at, now) do
+                :ets.delete(@table, key)
+                {:cont, {acc, count}}
+              else
+                matches_prefix = prefix == "" or String.starts_with?(key, prefix)
+
+                if matches_prefix do
+                  next_count = count + 1
+                  next_acc = [key | acc]
+
+                  if next_count >= limit do
+                    {:halt, {next_acc, next_count}}
+                  else
+                    {:cont, {next_acc, next_count}}
+                  end
+                else
+                  {:cont, {acc, count}}
+                end
+              end
+            end)
+
+          {:ok, Enum.reverse(keys)}
+        end
+    end
+  end
+
+  def list_keys(_, _), do: {:error, :invalid_prefix}
+
   def stats do
     case GenServer.whereis(__MODULE__) do
       nil -> {:error, :not_running}

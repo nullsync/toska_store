@@ -166,6 +166,7 @@ toska replicate --leader http://localhost:4000 --daemon
 When the server is running, the HTTP API provides a simple JSON key/value store:
 
 - `GET /kv/:key` - Fetch a value by key
+- `GET /kv/keys` - List keys (`?prefix=todo:` optional, `?limit=100` optional)
 - `PUT /kv/:key` - Set a value with optional `ttl_ms` (`{"value": "...", "ttl_ms": 5000}`)
 - `DELETE /kv/:key` - Remove a key
 - `POST /kv/mget` - Fetch multiple keys (`{"keys": ["a", "b"]}`)

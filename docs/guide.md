@@ -188,6 +188,7 @@ When the server is running, the HTTP API provides a simple JSON key/value store:
 - `GET /` - Welcome page with server status
 - `GET /status` - JSON status
 - `GET /health` - Health check
+- `GET /kv/keys` - List keys (`?prefix=todo:` optional, `?limit=100` optional)
 - `GET /kv/:key` - Fetch a value by key
 - `PUT /kv/:key` - Set a value with optional `ttl_ms` (`{"value": "...", "ttl_ms": 5000}`)
 - `DELETE /kv/:key` - Remove a key
