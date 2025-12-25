@@ -12,6 +12,7 @@ defmodule Toska.Server do
   alias Toska.ConfigManager
   alias Toska.KVStore
   alias Toska.NodeControl
+  alias Toska.RateLimiter
   alias Toska.Replication.Follower
 
   @name __MODULE__
@@ -136,6 +137,9 @@ defmodule Toska.Server do
   def init(state) do
     Logger.info("Initializing Toska server with config: #{inspect(state)}")
 
+    # Initialize rate limiter ETS table once at startup
+    RateLimiter.init()
+
     case KVStore.start_link() do
       {:ok, store_pid} ->
         start_replication_follower()
@@ -218,7 +222,19 @@ defmodule Toska.Server do
     bandit_options = [
       plug: Toska.Router,
       port: state.port,
-      ip: parse_host(state.host)
+      ip: parse_host(state.host),
+      # Thousand Island (underlying server) options for better concurrency
+      thousand_island_options: [
+        # Number of acceptor processes - more acceptors = better connection acceptance under load
+        num_acceptors: System.schedulers_online() * 2,
+        # Graceful shutdown timeout
+        shutdown_timeout: 30_000
+      ],
+      # HTTP options
+      http_options: [
+        # Compress responses over 1KB
+        compress: true
+      ]
     ]
 
     case Bandit.start_link(bandit_options) do

@@ -1,9 +1,23 @@
 defmodule Toska.RateLimiter do
   @moduledoc """
   Simple ETS-backed token bucket rate limiter.
+
+  Call `init/0` at application startup to create the ETS table.
   """
 
   @table :toska_rate_limiter
+
+  @doc """
+  Initialize the rate limiter ETS table. Call once at application startup.
+  Safe to call multiple times - will not recreate if table exists.
+  """
+  def init do
+    if :ets.whereis(@table) == :undefined do
+      :ets.new(@table, [:named_table, :set, :public, read_concurrency: true, write_concurrency: true])
+    end
+
+    :ok
+  end
 
   def allowed?(key, per_sec, burst) do
     cond do
@@ -11,7 +25,6 @@ defmodule Toska.RateLimiter do
         true
 
       true ->
-        ensure_table()
         now = System.monotonic_time(:millisecond)
 
         {tokens, last_ms} =
@@ -38,16 +51,6 @@ defmodule Toska.RateLimiter do
     end
 
     :ok
-  end
-
-  defp ensure_table do
-    case :ets.whereis(@table) do
-      :undefined ->
-        :ets.new(@table, [:named_table, :set, :public, read_concurrency: true, write_concurrency: true])
-
-      _ ->
-        :ok
-    end
   end
 
   defp refill(_tokens, now, last_ms, per_sec) do

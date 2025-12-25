@@ -4,6 +4,9 @@ defmodule Toska.ConfigManager do
 
   Handles reading, writing, and managing configuration for the Toska CLI and server.
   Configuration is stored in a simple key-value format and persisted to disk.
+
+  Hot-path configuration values (auth_token, rate limits, replica_url) are cached
+  in persistent_term for lock-free reads on every HTTP request.
   """
 
   use GenServer
@@ -11,6 +14,9 @@ defmodule Toska.ConfigManager do
 
   @name __MODULE__
   @config_file "toska_config.json"
+
+  # Keys cached in persistent_term for hot-path access (avoid GenServer calls per request)
+  @cached_keys ["auth_token", "rate_limit_per_sec", "rate_limit_burst", "replica_url"]
   @default_sync_interval_ms 1000
   @default_snapshot_interval_ms 60_000
   @default_ttl_check_interval_ms 1000
@@ -86,6 +92,75 @@ defmodule Toska.ConfigManager do
     end
   end
 
+  # Hot-path accessors - read from persistent_term cache (lock-free)
+  # These avoid GenServer calls on every HTTP request
+
+  @doc """
+  Get the cached auth token. Returns empty string if not set.
+  Environment variable TOSKA_AUTH_TOKEN takes precedence.
+  """
+  def cached_auth_token do
+    case System.get_env("TOSKA_AUTH_TOKEN") do
+      nil -> :persistent_term.get({__MODULE__, :auth_token}, "")
+      "" -> :persistent_term.get({__MODULE__, :auth_token}, "")
+      token -> token
+    end
+  end
+
+  @doc """
+  Get the cached rate limit config. Returns {per_sec, burst}.
+  Environment variables TOSKA_RATE_LIMIT_PER_SEC and TOSKA_RATE_LIMIT_BURST take precedence.
+  """
+  def cached_rate_limit do
+    env_per = System.get_env("TOSKA_RATE_LIMIT_PER_SEC")
+    env_burst = System.get_env("TOSKA_RATE_LIMIT_BURST")
+
+    per_sec =
+      case env_per do
+        nil -> :persistent_term.get({__MODULE__, :rate_limit_per_sec}, 0)
+        "" -> :persistent_term.get({__MODULE__, :rate_limit_per_sec}, 0)
+        val -> parse_int_or_default(val, 0)
+      end
+
+    burst =
+      case env_burst do
+        nil -> :persistent_term.get({__MODULE__, :rate_limit_burst}, 0)
+        "" -> :persistent_term.get({__MODULE__, :rate_limit_burst}, 0)
+        val -> parse_int_or_default(val, 0)
+      end
+
+    {per_sec, burst}
+  end
+
+  @doc """
+  Check if running in follower/replica mode. Returns boolean.
+  Environment variable TOSKA_REPLICA_URL takes precedence.
+  """
+  def cached_follower_mode? do
+    case System.get_env("TOSKA_REPLICA_URL") do
+      nil ->
+        url = :persistent_term.get({__MODULE__, :replica_url}, "")
+        is_binary(url) and url != ""
+
+      "" ->
+        url = :persistent_term.get({__MODULE__, :replica_url}, "")
+        is_binary(url) and url != ""
+
+      _url ->
+        true
+    end
+  end
+
+  defp parse_int_or_default(val, default) when is_binary(val) do
+    case Integer.parse(val) do
+      {int, ""} when int >= 0 -> int
+      _ -> default
+    end
+  end
+
+  defp parse_int_or_default(val, _default) when is_integer(val), do: val
+  defp parse_int_or_default(_, default), do: default
+
   # GenServer Callbacks
 
   @impl true
@@ -98,6 +173,9 @@ defmodule Toska.ConfigManager do
 
     # Load existing config or create default
     config = load_config(config_path)
+
+    # Populate persistent_term cache for hot-path values
+    update_cache(config)
 
     Logger.info("ConfigManager started with config file: #{config_path}")
 
@@ -125,6 +203,8 @@ defmodule Toska.ConfigManager do
 
         case save_config(new_state.config, state.file_path) do
           :ok ->
+            # Update cache if this is a hot-path key
+            if key in @cached_keys, do: update_cache(new_config)
             Logger.info("Configuration updated: #{key} = #{inspect(validated_value)}")
             {:reply, :ok, new_state}
 
@@ -156,6 +236,8 @@ defmodule Toska.ConfigManager do
 
         case save_config(new_state.config, state.file_path) do
           :ok ->
+            # Update cache if this is a hot-path key
+            if key in @cached_keys, do: update_cache(new_config)
             Logger.info("Configuration key '#{key}' reset to default: #{inspect(default_value)}")
             {:reply, :ok, new_state}
 
@@ -171,6 +253,8 @@ defmodule Toska.ConfigManager do
 
     case save_config(new_state.config, state.file_path) do
       :ok ->
+        # Update cache with new defaults
+        update_cache(new_state.config)
         Logger.info("All configuration reset to defaults")
         {:reply, :ok, new_state}
 
@@ -180,6 +264,14 @@ defmodule Toska.ConfigManager do
   end
 
   # Private Functions
+
+  defp update_cache(config) do
+    # Cache hot-path values in persistent_term for lock-free reads
+    :persistent_term.put({__MODULE__, :auth_token}, config["auth_token"] || "")
+    :persistent_term.put({__MODULE__, :rate_limit_per_sec}, parse_int_or_default(config["rate_limit_per_sec"], 0))
+    :persistent_term.put({__MODULE__, :rate_limit_burst}, parse_int_or_default(config["rate_limit_burst"], 0))
+    :persistent_term.put({__MODULE__, :replica_url}, config["replica_url"] || "")
+  end
 
   defp load_config(file_path) do
     default = default_config()

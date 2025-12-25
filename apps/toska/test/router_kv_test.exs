@@ -24,6 +24,7 @@ defmodule Toska.RouterKVTest do
 
     stop_store()
     start_store()
+    Toska.RateLimiter.init()
     Toska.RateLimiter.reset()
 
     on_exit(fn ->

@@ -485,43 +485,11 @@ defmodule Toska.Router do
   end
 
   defp follower_mode? do
-    env = System.get_env("TOSKA_REPLICA_URL")
-
-    if is_binary(env) and env != "" do
-      true
-    else
-      case GenServer.whereis(ConfigManager) do
-        nil -> false
-        _pid ->
-          case ConfigManager.list() do
-            {:ok, config} ->
-              url = config["replica_url"]
-              is_binary(url) and url != ""
-
-            _ ->
-              false
-          end
-      end
-    end
+    ConfigManager.cached_follower_mode?()
   end
 
   defp auth_token do
-    env = System.get_env("TOSKA_AUTH_TOKEN")
-
-    cond do
-      is_binary(env) and env != "" ->
-        env
-
-      true ->
-        case GenServer.whereis(ConfigManager) do
-          nil -> ""
-          _pid ->
-            case ConfigManager.list() do
-              {:ok, config} -> config["auth_token"] || ""
-              _ -> ""
-            end
-        end
-    end
+    ConfigManager.cached_auth_token()
   end
 
   defp token_match?(_token, nil), do: false
@@ -531,36 +499,17 @@ defmodule Toska.Router do
   defp token_match?(_token, _header), do: false
 
   defp rate_limit_config do
-    env_per = System.get_env("TOSKA_RATE_LIMIT_PER_SEC")
-    env_burst = System.get_env("TOSKA_RATE_LIMIT_BURST")
-
-    config =
-      case GenServer.whereis(ConfigManager) do
-        nil -> %{}
-        _pid ->
-          case ConfigManager.list() do
-            {:ok, stored} -> stored
-            _ -> %{}
-          end
-      end
-
-    per_sec = parse_int(env_per, config["rate_limit_per_sec"], 0)
-    burst = parse_int(env_burst, config["rate_limit_burst"], 0)
-
-    {per_sec, burst}
+    ConfigManager.cached_rate_limit()
   end
 
-  defp parse_int(nil, nil, default), do: default
-  defp parse_int(nil, value, default), do: parse_int(value, default)
-  defp parse_int(value, _default, default), do: parse_int(value, default)
-
-  defp parse_int(value, _default) when is_integer(value) and value >= 0, do: value
+  defp parse_int(nil, default), do: default
   defp parse_int(value, default) when is_binary(value) do
     case Integer.parse(value) do
       {int, ""} when int >= 0 -> int
       _ -> default
     end
   end
+  defp parse_int(value, _default) when is_integer(value) and value >= 0, do: value
   defp parse_int(_, default), do: default
 
   defp client_key(conn) do

@@ -2,6 +2,7 @@ defmodule Toska.RateLimiterTest do
   use ExUnit.Case, async: false
 
   setup do
+    Toska.RateLimiter.init()
     Toska.RateLimiter.reset()
     :ok
   end
