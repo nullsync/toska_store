@@ -38,7 +38,8 @@ defmodule Toska.MixProject do
     [
       {:jason, "~> 1.4"},
       {:bandit, "~> 1.0"},
-      {:plug, "~> 1.15"}
+      {:plug, "~> 1.15"},
+      {:benchee, "~> 1.2", only: :dev, runtime: false}
     ]
   end
 end
