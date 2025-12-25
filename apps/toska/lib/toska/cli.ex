@@ -12,19 +12,23 @@ defmodule Toska.CLI do
   Main entry point for the CLI when run as an escript.
   """
   def main(args) do
+    main(args, &System.halt/1)
+  end
+
+  def main(args, halt_fun) when is_list(args) and is_function(halt_fun, 1) do
     # Ensure the application is started
     Application.ensure_all_started(:toska)
 
     # Parse and execute the command
     case CommandParser.parse(args) do
       :ok ->
-        System.halt(0)
+        halt_fun.(0)
 
       {:ok, _result} ->
-        System.halt(0)
+        halt_fun.(0)
 
       {:error, _reason} ->
-        System.halt(1)
+        halt_fun.(1)
     end
   end
 end

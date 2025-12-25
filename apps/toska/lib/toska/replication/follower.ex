@@ -212,9 +212,10 @@ defmodule Toska.Replication.Follower do
 
   defp http_get(url, timeout_ms) do
     request = {to_charlist(url), []}
-    options = [timeout: timeout_ms, connect_timeout: timeout_ms, body_format: :binary]
+    http_options = [timeout: timeout_ms, connect_timeout: timeout_ms]
+    options = [body_format: :binary]
 
-    case :httpc.request(:get, request, [], options) do
+    case :httpc.request(:get, request, http_options, options) do
       {:ok, {{_http_version, status, _reason}, headers, body}} ->
         {:ok, status, headers, body}
 
@@ -228,8 +229,8 @@ defmodule Toska.Replication.Follower do
   end
 
   defp ensure_http do
-    :inets.start()
-    :ssl.start()
+    _ = Application.ensure_all_started(:inets)
+    _ = Application.ensure_all_started(:ssl)
     :ok
   end
 

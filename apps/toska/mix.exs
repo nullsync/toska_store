@@ -4,13 +4,14 @@ defmodule Toska.MixProject do
   def project do
     [
       app: :toska,
-      version: "0.1.0",
+      version: "0.8.0",
       build_path: "../../_build",
       config_path: "../../config/config.exs",
       deps_path: "../../deps",
       lockfile: "../../mix.lock",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
+      test_coverage: [summary: [threshold: 80]],
       deps: deps(),
       escript: escript()
     ]
@@ -19,7 +20,7 @@ defmodule Toska.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger],
+      extra_applications: [:logger, :inets, :ssl],
       mod: {Toska.Application, []}
     ]
   end
@@ -37,7 +38,8 @@ defmodule Toska.MixProject do
     [
       {:jason, "~> 1.4"},
       {:bandit, "~> 1.0"},
-      {:plug, "~> 1.15"}
+      {:plug, "~> 1.15"},
+      {:benchee, "~> 1.2", only: :dev, runtime: false}
     ]
   end
 end
