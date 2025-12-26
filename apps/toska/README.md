@@ -1,6 +1,6 @@
 # Toska
 
-A command-line interface for the Toska Store server, built with Elixir and designed for extensibility.
+A command-line interface for the ToskaStore server, built with Elixir and designed for extensibility.
 
 ## Overview
 

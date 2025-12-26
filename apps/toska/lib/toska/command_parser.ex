@@ -59,7 +59,7 @@ defmodule Toska.CommandParser do
   """
   def show_help do
     IO.puts("""
-    Toska - Command Line Interface for Toska Store
+    Toska - Command Line Interface for ToskaStore
 
     Usage:
       toska [command] [options]

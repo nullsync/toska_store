@@ -1,10 +1,10 @@
 # Codebase Assessment
 
-This document provides an analysis of the Toska Store codebase, identifying architectural patterns, strengths, and areas for improvement.
+This document provides an analysis of the ToskaStore codebase, identifying architectural patterns, strengths, and areas for improvement.
 
 ## Overview
 
-Toska Store is a disk-backed key-value store written in Elixir with an HTTP/JSON REST API and CLI interface. It uses ETS for in-memory storage with AOF (Append-Only File) and snapshots for persistence.
+ToskaStore is a disk-backed key-value store written in Elixir with an HTTP/JSON REST API and CLI interface. It uses ETS for in-memory storage with AOF (Append-Only File) and snapshots for persistence.
 
 **Version**: 0.8.0
 **Type**: Umbrella Elixir project
@@ -188,7 +188,7 @@ The ~10x difference vs Redis is expected due to HTTP/JSON overhead vs RESP binar
 
 ## Summary
 
-Toska Store is a well-engineered project with strong Elixir/OTP practices. No critical issues were found. The main areas for improvement are:
+ToskaStore is a well-engineered project with strong Elixir/OTP practices. No critical issues were found. The main areas for improvement are:
 
 1. **Observability** - Add structured logging and metrics
 2. **Documentation** - Add API specification

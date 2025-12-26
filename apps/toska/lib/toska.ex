@@ -1,6 +1,6 @@
 defmodule Toska do
   @moduledoc """
-  Toska - Command Line Interface for Toska Store
+  Toska - Command Line Interface for ToskaStore
 
   This module provides the main entry points and public API for the Toska CLI application.
   The CLI is designed to manage the Toska server process and handle various administrative tasks.
