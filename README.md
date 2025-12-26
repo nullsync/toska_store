@@ -1,5 +1,9 @@
 # ToskaStore
 
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+**Maintained by [@nullsync](https://github.com/nullsync) at [Abstractive Machines LLC](https://github.com/abstractivemachines-com)**
+
 ToskaStore is a disk-backed string KV store with a clean HTTP/JSON surface and a minimal CLI. It is built in Elixir, designed for clarity, and intended to scale without surprises.
 
 ## Quick Start
@@ -27,8 +31,18 @@ curl -s http://localhost:4000/kv/hello
 - [docs/guide.md](docs/guide.md) - full install/build/config/API/CLI/development guide
 - [docs/kv-store-changes.md](docs/kv-store-changes.md) - KV store change log and milestones
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for security policy and vulnerability reporting.
+
 ## License
 
-Apache-2.0
+Licensed under the Apache License 2.0. See `LICENSE` and `NOTICE` for details.
+
+---
 
 Tip: `./toska status` and `/health` are the fastest sanity checks.
