@@ -29,6 +29,6 @@ curl -s http://localhost:4000/kv/hello
 
 ## License
 
-MIT
+Apache-2.0
 
 Tip: `./toska status` and `/health` are the fastest sanity checks.

@@ -29,6 +29,9 @@ defmodule Toska.CommandParser do
       ["-h"] ->
         show_help()
 
+      ["--version"] ->
+        show_version()
+
       ["start" | rest] ->
         Commands.Start.execute(rest)
 
@@ -70,6 +73,7 @@ defmodule Toska.CommandParser do
 
     Global Options:
       -h, --help    Show this help message
+      --version     Show version information
 
     Examples:
       toska start --port 8080
@@ -83,6 +87,12 @@ defmodule Toska.CommandParser do
       toska [command] --help
     """)
 
+    :ok
+  end
+
+  def show_version do
+    IO.puts("toska #{Toska.version()}")
+    IO.puts("Copyright 2025 Abstractive Machines LLC")
     :ok
   end
 end
