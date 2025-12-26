@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**Maintained by [@nullsync](https://github.com/nullsync) at [Abstractive Machines LLC](https://github.com/abstractivemachines-com)**
+**Maintained by [@nullsync](https://github.com/nullsync) at [Abstractive Machines LLC](https://github.com/abstractive-machines)**
 
 ToskaStore is a disk-backed string KV store with a clean HTTP/JSON surface and a minimal CLI. It is built in Elixir, designed for clarity, and intended to scale without surprises.
 
