@@ -95,32 +95,14 @@ defmodule Toska.KVStore do
         else
           now = now_ms()
           match_spec = [{{:"$1", :_, :"$2"}, [], [{{:"$1", :"$2"}}]}]
+          chunk_size = max(min(limit, 1000), 100)
 
-          {keys, _count} =
-            :ets.select(@table, match_spec)
-            |> Enum.reduce_while({[], 0}, fn {key, expires_at}, {acc, count} ->
-              if expired?(expires_at, now) do
-                :ets.delete(@table, key)
-                {:cont, {acc, count}}
-              else
-                matches_prefix = prefix == "" or String.starts_with?(key, prefix)
+          keys =
+            match_spec
+            |> collect_keys(prefix, limit, now, chunk_size)
+            |> Enum.reverse()
 
-                if matches_prefix do
-                  next_count = count + 1
-                  next_acc = [key | acc]
-
-                  if next_count >= limit do
-                    {:halt, {next_acc, next_count}}
-                  else
-                    {:cont, {next_acc, next_count}}
-                  end
-                else
-                  {:cont, {acc, count}}
-                end
-              end
-            end)
-
-          {:ok, Enum.reverse(keys)}
+          {:ok, keys}
         end
     end
   end
@@ -530,12 +512,14 @@ defmodule Toska.KVStore do
   end
 
   defp replay_aof(path) do
-    case File.read(path) do
-      {:ok, content} ->
+    case File.open(path, [:read]) do
+      {:ok, io} ->
         now = now_ms()
 
-        content
-        |> String.split("\n", trim: true)
+        io
+        |> IO.stream(:line)
+        |> Stream.map(&String.trim/1)
+        |> Stream.reject(&(&1 == ""))
         |> Enum.each(fn line ->
           case Jason.decode(line) do
             {:ok, record} ->
@@ -550,11 +534,65 @@ defmodule Toska.KVStore do
           end
         end)
 
+        File.close(io)
+
       {:error, :enoent} ->
         :ok
 
       {:error, reason} ->
         Logger.warning("Failed to read AOF: #{inspect(reason)}")
+    end
+  end
+
+  defp collect_keys(match_spec, prefix, limit, now, chunk_size) do
+    case :ets.select(@table, match_spec, chunk_size) do
+      :"$end_of_table" ->
+        []
+
+      {rows, continuation} ->
+        collect_keys_from(rows, continuation, prefix, limit, now, [], 0)
+    end
+  end
+
+  defp collect_keys_from(rows, continuation, prefix, limit, now, acc, count) do
+    {acc, count} =
+      Enum.reduce_while(rows, {acc, count}, fn {key, expires_at}, {acc, count} ->
+        if expired?(expires_at, now) do
+          :ets.delete(@table, key)
+          {:cont, {acc, count}}
+        else
+          matches_prefix = prefix == "" or String.starts_with?(key, prefix)
+
+          if matches_prefix do
+            next_count = count + 1
+            next_acc = [key | acc]
+
+            if next_count >= limit do
+              {:halt, {next_acc, next_count}}
+            else
+              {:cont, {next_acc, next_count}}
+            end
+          else
+            {:cont, {acc, count}}
+          end
+        end
+      end)
+
+    cond do
+      count >= limit ->
+        acc
+
+      continuation == :"$end_of_table" ->
+        acc
+
+      true ->
+        case :ets.select(continuation) do
+          :"$end_of_table" ->
+            acc
+
+          {next_rows, next_continuation} ->
+            collect_keys_from(next_rows, next_continuation, prefix, limit, now, acc, count)
+        end
     end
   end
 

@@ -73,16 +73,27 @@ defmodule Toska.Server do
         {:error, :not_running}
 
       pid ->
-        if force do
-          Process.exit(pid, :kill)
-          Logger.info("Toska server force stopped")
-        else
-          GenServer.stop(@name, :normal)
-          Logger.info("Toska server stopped gracefully")
-        end
+        result =
+          if force do
+            try do
+              Process.exit(pid, :kill)
+              Logger.info("Toska server force stopped")
+              :ok
+            rescue
+              ArgumentError -> {:error, :not_running}
+            end
+          else
+            try do
+              GenServer.stop(pid, :normal)
+              Logger.info("Toska server stopped gracefully")
+              :ok
+            catch
+              :exit, _ -> {:error, :not_running}
+            end
+          end
 
         NodeControl.clear_runtime()
-        :ok
+        result
     end
   end
 

@@ -474,7 +474,9 @@ defmodule Toska.Router do
   end
 
   defp kv_path?(path) do
-    String.starts_with?(path, "/kv") or path == "/stats"
+    String.starts_with?(path, "/kv") or
+      path == "/stats" or
+      String.starts_with?(path, "/replication")
   end
 
   defp write_request?(conn) do

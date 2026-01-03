@@ -8,6 +8,8 @@ defmodule Toska.NodeControl do
   @runtime_file "toska_runtime.json"
   @server_node_name :toska
   @default_cookie :toska_cookie
+  @runtime_atom_max_length 255
+  @runtime_atom_pattern ~r/^[a-zA-Z0-9_.@-]+$/
 
   @doc """
   Ensure the server node is started for distributed control and publish metadata.
@@ -104,7 +106,10 @@ defmodule Toska.NodeControl do
   end
 
   defp apply_cookie(cookie) when is_binary(cookie) do
-    apply_cookie(String.to_atom(cookie))
+    case safe_to_atom(cookie) do
+      {:ok, atom} -> apply_cookie(atom)
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   defp apply_cookie(cookie) when is_atom(cookie) do
@@ -141,7 +146,11 @@ defmodule Toska.NodeControl do
       {:ok, content} ->
         case Jason.decode(content) do
           {:ok, %{"node" => node, "cookie" => cookie}} ->
-            {:ok, %{node: node, cookie: cookie}}
+            if valid_runtime_value?(node) and valid_runtime_value?(cookie) do
+              {:ok, %{node: node, cookie: cookie}}
+            else
+              {:error, :invalid_runtime}
+            end
 
           {:ok, _} ->
             {:error, :invalid_runtime}
@@ -159,7 +168,10 @@ defmodule Toska.NodeControl do
   end
 
   defp connect_to_node(node_name) when is_binary(node_name) do
-    connect_to_node(String.to_atom(node_name))
+    case safe_to_atom(node_name) do
+      {:ok, atom} -> connect_to_node(atom)
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   defp connect_to_node(node_name) when is_atom(node_name) do
@@ -167,5 +179,17 @@ defmodule Toska.NodeControl do
       :pong -> {:ok, node_name}
       :pang -> {:error, :unreachable}
     end
+  end
+
+  defp safe_to_atom(value) when is_binary(value) do
+    if valid_runtime_value?(value) do
+      {:ok, String.to_atom(value)}
+    else
+      {:error, :invalid_runtime}
+    end
+  end
+
+  defp valid_runtime_value?(value) when is_binary(value) do
+    String.length(value) <= @runtime_atom_max_length and value =~ @runtime_atom_pattern
   end
 end

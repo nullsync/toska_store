@@ -6,6 +6,7 @@ defmodule Toska.Replication.Follower do
   use GenServer
   require Logger
 
+  alias Toska.ConfigManager
   alias Toska.KVStore
 
   @default_poll_interval_ms 1000
@@ -124,7 +125,7 @@ defmodule Toska.Replication.Follower do
   defp fetch_snapshot(state) do
     url = state.leader_url <> "/replication/snapshot"
 
-    case http_get(url, state.http_timeout_ms) do
+    case http_get(url, state.http_timeout_ms, auth_headers()) do
       {:ok, 200, _headers, body} ->
         case Jason.decode(body) do
           {:ok, payload} -> {:ok, payload}
@@ -146,7 +147,7 @@ defmodule Toska.Replication.Follower do
         Integer.to_string(state.offset) <>
         "&max_bytes=65536"
 
-    case http_get(url, state.http_timeout_ms) do
+    case http_get(url, state.http_timeout_ms, auth_headers()) do
       {:ok, 204, headers, _body} ->
         response_size = parse_aof_size(headers, state.offset)
 
@@ -216,8 +217,8 @@ defmodule Toska.Replication.Follower do
     end)
   end
 
-  defp http_get(url, timeout_ms) do
-    request = {to_charlist(url), []}
+  defp http_get(url, timeout_ms, headers) do
+    request = {to_charlist(url), headers}
     http_options = [timeout: timeout_ms, connect_timeout: timeout_ms]
     options = [body_format: :binary]
 
@@ -227,6 +228,17 @@ defmodule Toska.Replication.Follower do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp auth_headers do
+    token = ConfigManager.cached_auth_token()
+
+    if is_binary(token) and token != "" do
+      bearer = "Bearer " <> token
+      [{~c"authorization", to_charlist(bearer)}]
+    else
+      []
     end
   end
 
