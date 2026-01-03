@@ -69,7 +69,9 @@ defmodule Toska.Replication.Follower do
   def handle_info(:poll, state) do
     state =
       case poll_aof(state) do
-        {:ok, new_state} -> new_state
+        {:ok, new_state} ->
+          new_state
+
         {:error, reason} ->
           Logger.warning("Replica poll failed: #{inspect(reason)}")
           %{state | last_error: reason}
@@ -140,12 +142,14 @@ defmodule Toska.Replication.Follower do
   defp poll_aof(state) do
     url =
       state.leader_url <>
-        "/replication/aof?since=" <> Integer.to_string(state.offset) <>
+        "/replication/aof?since=" <>
+        Integer.to_string(state.offset) <>
         "&max_bytes=65536"
 
     case http_get(url, state.http_timeout_ms) do
       {:ok, 204, headers, _body} ->
         response_size = parse_aof_size(headers, state.offset)
+
         state =
           state
           |> Map.put(:offset, max(state.offset, response_size))
@@ -190,7 +194,9 @@ defmodule Toska.Replication.Follower do
 
   defp parse_aof_size(headers, fallback) do
     case get_header(headers, "x-toska-aof-size") do
-      nil -> fallback
+      nil ->
+        fallback
+
       value ->
         case Integer.parse(value) do
           {int, ""} -> int

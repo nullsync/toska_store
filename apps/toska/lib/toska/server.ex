@@ -29,15 +29,20 @@ defmodule Toska.Server do
     env = Keyword.get(opts, :env, "dev")
     daemon = Keyword.get(opts, :daemon, false)
 
-    case GenServer.start_link(__MODULE__, %{
-      host: host,
-      port: port,
-      env: env,
-      daemon: daemon,
-      started_at: System.system_time(:millisecond)
-    }, name: @name) do
+    case GenServer.start_link(
+           __MODULE__,
+           %{
+             host: host,
+             port: port,
+             env: env,
+             daemon: daemon,
+             started_at: System.system_time(:millisecond)
+           },
+           name: @name
+         ) do
       {:ok, pid} ->
         Logger.info("Toska server started on #{host}:#{port} (env: #{env})")
+
         case NodeControl.ensure_server_node() do
           :ok ->
             :ok
@@ -45,6 +50,7 @@ defmodule Toska.Server do
           {:error, reason} ->
             Logger.warning("Distributed control disabled: #{inspect(reason)}")
         end
+
         {:ok, pid}
 
       {:error, {:already_started, pid}} ->
@@ -74,6 +80,7 @@ defmodule Toska.Server do
           GenServer.stop(@name, :normal)
           Logger.info("Toska server stopped gracefully")
         end
+
         NodeControl.clear_runtime()
         :ok
     end
@@ -157,10 +164,11 @@ defmodule Toska.Server do
 
   @impl true
   def handle_call(:get_status, _from, state) do
-    uptime = case state.started_at do
-      nil -> nil
-      started_at -> System.system_time(:millisecond) - started_at
-    end
+    uptime =
+      case state.started_at do
+        nil -> nil
+        started_at -> System.system_time(:millisecond) - started_at
+      end
 
     status_info = %{
       status: state.status,
@@ -242,8 +250,10 @@ defmodule Toska.Server do
         # Register the pid with our own name for management
         Process.register(pid, @http_server_name)
         {:ok, pid}
+
       {:error, {:already_started, pid}} ->
         {:ok, pid}
+
       {:error, reason} ->
         {:error, reason}
     end
@@ -254,7 +264,9 @@ defmodule Toska.Server do
       {:ok, bandit_pid} ->
         Logger.info("HTTP server started successfully on #{state.host}:#{state.port}")
         Process.send_after(self(), :server_ready, 500)
-        {:ok, Map.merge(state, %{status: :starting, bandit_pid: bandit_pid, store_pid: store_pid})}
+
+        {:ok,
+         Map.merge(state, %{status: :starting, bandit_pid: bandit_pid, store_pid: store_pid})}
 
       {:error, reason} ->
         Logger.error("Failed to start HTTP server: #{inspect(reason)}")
@@ -269,8 +281,12 @@ defmodule Toska.Server do
 
       opts ->
         case Follower.start_link(opts) do
-          {:ok, _pid} -> :ok
-          {:error, {:already_started, _pid}} -> :ok
+          {:ok, _pid} ->
+            :ok
+
+          {:error, {:already_started, _pid}} ->
+            :ok
+
           {:error, reason} ->
             Logger.warning("Replication follower failed to start: #{inspect(reason)}")
         end
@@ -280,7 +296,9 @@ defmodule Toska.Server do
   defp replication_options do
     config =
       case GenServer.whereis(ConfigManager) do
-        nil -> %{}
+        nil ->
+          %{}
+
         _pid ->
           case ConfigManager.list() do
             {:ok, stored} -> stored
@@ -293,8 +311,18 @@ defmodule Toska.Server do
     if is_binary(url) and url != "" do
       [
         leader_url: url,
-        poll_interval_ms: parse_int(System.get_env("TOSKA_REPLICA_POLL_MS"), config["replica_poll_interval_ms"], 1000),
-        http_timeout_ms: parse_int(System.get_env("TOSKA_REPLICA_HTTP_TIMEOUT_MS"), config["replica_http_timeout_ms"], 5000)
+        poll_interval_ms:
+          parse_int(
+            System.get_env("TOSKA_REPLICA_POLL_MS"),
+            config["replica_poll_interval_ms"],
+            1000
+          ),
+        http_timeout_ms:
+          parse_int(
+            System.get_env("TOSKA_REPLICA_HTTP_TIMEOUT_MS"),
+            config["replica_http_timeout_ms"],
+            5000
+          )
       ]
     else
       nil
@@ -306,12 +334,14 @@ defmodule Toska.Server do
   defp parse_int(value, _default, default), do: parse_int(value, default)
 
   defp parse_int(value, _default) when is_integer(value) and value > 0, do: value
+
   defp parse_int(value, default) when is_binary(value) do
     case Integer.parse(value) do
       {int, ""} when int > 0 -> int
       _ -> default
     end
   end
+
   defp parse_int(_, default), do: default
 
   defp stop_http_server do
@@ -319,6 +349,7 @@ defmodule Toska.Server do
       nil ->
         Logger.debug("HTTP server already stopped")
         :ok
+
       pid ->
         Process.unregister(@http_server_name)
         GenServer.stop(pid, :normal)
@@ -330,11 +361,14 @@ defmodule Toska.Server do
   defp parse_host("localhost"), do: {127, 0, 0, 1}
   defp parse_host("127.0.0.1"), do: {127, 0, 0, 1}
   defp parse_host("0.0.0.0"), do: {0, 0, 0, 0}
+
   defp parse_host(host) when is_binary(host) do
     case :inet.parse_address(String.to_charlist(host)) do
       {:ok, ip} -> ip
-      {:error, _} -> {127, 0, 0, 1}  # Default to localhost on parse error
+      # Default to localhost on parse error
+      {:error, _} -> {127, 0, 0, 1}
     end
   end
+
   defp parse_host(_), do: {127, 0, 0, 1}
 end

@@ -14,17 +14,20 @@ defmodule Toska.Commands.Start do
 
   @impl true
   def execute(args) do
-    {options, remaining_args, invalid} = Command.parse_options(args, [
-      port: :integer,
-      host: :string,
-      env: :string,
-      daemon: :boolean,
-      help: :boolean
-    ], [
-      p: :port,
-      h: :help,
-      d: :daemon
-    ])
+    {options, remaining_args, invalid} =
+      Command.parse_options(
+        args,
+        [
+          port: :integer,
+          host: :string,
+          env: :string,
+          daemon: :boolean,
+          help: :boolean
+        ],
+        p: :port,
+        h: :help,
+        d: :daemon
+      )
 
     cond do
       options[:help] ->
@@ -80,6 +83,7 @@ defmodule Toska.Commands.Start do
     else
       Command.show_info("Starting Toska server...")
     end
+
     Command.show_info("Host: #{host}")
     Command.show_info("Port: #{port}")
     Command.show_info("Environment: #{env}")
@@ -101,10 +105,12 @@ defmodule Toska.Commands.Start do
     case Server.start(host: host, port: port, env: env, daemon: daemon) do
       {:ok, pid} ->
         Command.show_success("Server started successfully (PID: #{inspect(pid)})")
+
         if should_block?(daemon, daemon_child) do
           Command.show_info("Press Ctrl+C to stop the server")
           :timer.sleep(:infinity)
         end
+
         :ok
 
       {:error, {:already_started, _pid}} ->

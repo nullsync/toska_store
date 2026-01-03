@@ -91,11 +91,14 @@ defmodule Toska.Commands.Config do
   end
 
   defp handle_get(args) do
-    {options, remaining_args, invalid} = Command.parse_options(args, [
-      help: :boolean
-    ], [
-      h: :help
-    ])
+    {options, remaining_args, invalid} =
+      Command.parse_options(
+        args,
+        [
+          help: :boolean
+        ],
+        h: :help
+      )
 
     cond do
       options[:help] ->
@@ -117,11 +120,14 @@ defmodule Toska.Commands.Config do
   end
 
   defp handle_set(args) do
-    {options, remaining_args, invalid} = Command.parse_options(args, [
-      help: :boolean
-    ], [
-      h: :help
-    ])
+    {options, remaining_args, invalid} =
+      Command.parse_options(
+        args,
+        [
+          help: :boolean
+        ],
+        h: :help
+      )
 
     cond do
       options[:help] ->
@@ -143,13 +149,16 @@ defmodule Toska.Commands.Config do
   end
 
   defp handle_list(args) do
-    {options, _remaining_args, invalid} = Command.parse_options(args, [
-      help: :boolean,
-      json: :boolean
-    ], [
-      h: :help,
-      j: :json
-    ])
+    {options, _remaining_args, invalid} =
+      Command.parse_options(
+        args,
+        [
+          help: :boolean,
+          json: :boolean
+        ],
+        h: :help,
+        j: :json
+      )
 
     cond do
       options[:help] ->
@@ -165,13 +174,16 @@ defmodule Toska.Commands.Config do
   end
 
   defp handle_reset(args) do
-    {options, remaining_args, invalid} = Command.parse_options(args, [
-      help: :boolean,
-      confirm: :boolean
-    ], [
-      h: :help,
-      y: :confirm
-    ])
+    {options, remaining_args, invalid} =
+      Command.parse_options(
+        args,
+        [
+          help: :boolean,
+          confirm: :boolean
+        ],
+        h: :help,
+        y: :confirm
+      )
 
     cond do
       options[:help] ->
@@ -222,10 +234,12 @@ defmodule Toska.Commands.Config do
         else
           IO.puts("Current Configuration:")
           IO.puts("=====================")
+
           Enum.each(config, fn {key, value} ->
             IO.puts("#{key}: #{inspect(value)}")
           end)
         end
+
         :ok
 
       {:error, reason} ->
@@ -260,17 +274,18 @@ defmodule Toska.Commands.Config do
   end
 
   defp reset_specific_keys(keys, _confirm) do
-    results = Enum.map(keys, fn key ->
-      case ConfigManager.reset(key) do
-        :ok ->
-          Command.show_success("Reset #{key} to default")
-          :ok
+    results =
+      Enum.map(keys, fn key ->
+        case ConfigManager.reset(key) do
+          :ok ->
+            Command.show_success("Reset #{key} to default")
+            :ok
 
-        {:error, reason} ->
-          Command.show_error("Failed to reset #{key}: #{inspect(reason)}")
-          {:error, reason}
-      end
-    end)
+          {:error, reason} ->
+            Command.show_error("Failed to reset #{key}: #{inspect(reason)}")
+            {:error, reason}
+        end
+      end)
 
     if Enum.all?(results, &(&1 == :ok)) do
       :ok
@@ -281,11 +296,14 @@ defmodule Toska.Commands.Config do
 
   defp get_confirmation(message) do
     IO.write("#{message} (y/N): ")
+
     case IO.read(:line) do
       {:ok, input} ->
         trimmed_input = input |> String.trim() |> String.downcase()
         trimmed_input in ["y", "yes"]
-      _ -> false
+
+      _ ->
+        false
     end
   end
 

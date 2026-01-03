@@ -415,17 +415,20 @@ defmodule Toska.ConfigManager do
   defp validate_sync_mode(_), do: {:error, "Sync mode must be one of: always, interval, none"}
 
   defp validate_positive_int(value) when is_integer(value) and value > 0, do: {:ok, value}
+
   defp validate_positive_int(value) when is_binary(value) do
     case Integer.parse(value) do
       {int, ""} when int > 0 -> {:ok, int}
       _ -> {:error, "Value must be a positive integer"}
     end
   end
+
   defp validate_positive_int(_), do: {:error, "Value must be a positive integer"}
 
   defp validate_path(value) when is_binary(value) and byte_size(value) > 0 do
     {:ok, value}
   end
+
   defp validate_path(_), do: {:error, "Value must be a non-empty string"}
 
   defp validate_optional_string(value) when is_binary(value), do: {:ok, value}
@@ -433,12 +436,14 @@ defmodule Toska.ConfigManager do
   defp validate_optional_string(_), do: {:error, "Value must be a string or empty"}
 
   defp validate_nonnegative_int(value) when is_integer(value) and value >= 0, do: {:ok, value}
+
   defp validate_nonnegative_int(value) when is_binary(value) do
     case Integer.parse(value) do
       {int, ""} when int >= 0 -> {:ok, int}
       _ -> {:error, "Value must be a non-negative integer"}
     end
   end
+
   defp validate_nonnegative_int(_), do: {:error, "Value must be a non-negative integer"}
 
   defp parse_value(value) when is_binary(value) do

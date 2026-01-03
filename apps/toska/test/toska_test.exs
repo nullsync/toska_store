@@ -34,9 +34,12 @@ defmodule ToskaTest do
     assert {:ok, _pid} = Toska.Server.start(host: "127.0.0.1", port: port, env: "test")
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               Toska.server_running?()
-             end, 1500)
+             TestHelpers.wait_until(
+               fn ->
+                 Toska.server_running?()
+               end,
+               1500
+             )
   end
 
   test "server_status returns a map" do

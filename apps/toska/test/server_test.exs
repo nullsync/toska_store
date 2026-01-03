@@ -35,9 +35,12 @@ defmodule Toska.ServerTest do
              Toska.Server.start(host: "127.0.0.1", port: port, env: "test", daemon: false)
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               Toska.Server.status().status == :running
-             end, 1500)
+             TestHelpers.wait_until(
+               fn ->
+                 Toska.Server.status().status == :running
+               end,
+               1500
+             )
 
     assert {:ok, config} = Toska.Server.get_config()
     assert config.host == "127.0.0.1"
@@ -48,16 +51,25 @@ defmodule Toska.ServerTest do
     assert updated.env == "dev"
 
     assert :ok = Toska.Server.stop()
+
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               Toska.Server.status().status == :stopped
-             end, 1000)
+             TestHelpers.wait_until(
+               fn ->
+                 Toska.Server.status().status == :stopped
+               end,
+               1000
+             )
   end
 
   test "start returns already started" do
     port = TestHelpers.free_port()
-    assert {:ok, _pid} = Toska.Server.start(host: "127.0.0.1", port: port, env: "test", daemon: false)
-    assert {:error, {:already_started, _pid}} = Toska.Server.start(host: "127.0.0.1", port: port, env: "test", daemon: false)
+
+    assert {:ok, _pid} =
+             Toska.Server.start(host: "127.0.0.1", port: port, env: "test", daemon: false)
+
+    assert {:error, {:already_started, _pid}} =
+             Toska.Server.start(host: "127.0.0.1", port: port, env: "test", daemon: false)
+
     assert :ok = Toska.Server.stop()
   end
 
@@ -78,7 +90,10 @@ defmodule Toska.ServerTest do
 
   test "start accepts invalid host values" do
     port = TestHelpers.free_port()
-    assert {:ok, _pid} = Toska.Server.start(host: "not-an-ip", port: port, env: "test", daemon: false)
+
+    assert {:ok, _pid} =
+             Toska.Server.start(host: "not-an-ip", port: port, env: "test", daemon: false)
+
     assert :ok = Toska.Server.stop()
   end
 

@@ -54,15 +54,22 @@ defmodule Toska.ServerControlTest do
     assert {:ok, _pid} = Toska.Server.start(host: "127.0.0.1", port: port, env: "test")
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               Toska.ServerControl.status().status == :running
-             end, 2000)
+             TestHelpers.wait_until(
+               fn ->
+                 Toska.ServerControl.status().status == :running
+               end,
+               2000
+             )
 
     assert :ok = Toska.ServerControl.stop()
+
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               Toska.Server.status().status == :stopped
-             end, 2000)
+             TestHelpers.wait_until(
+               fn ->
+                 Toska.Server.status().status == :stopped
+               end,
+               2000
+             )
   end
 
   test "stop returns not running when remote is unreachable" do

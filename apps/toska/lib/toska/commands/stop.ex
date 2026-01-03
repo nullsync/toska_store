@@ -12,13 +12,16 @@ defmodule Toska.Commands.Stop do
 
   @impl true
   def execute(args) do
-    {options, remaining_args, invalid} = Command.parse_options(args, [
-      force: :boolean,
-      help: :boolean
-    ], [
-      f: :force,
-      h: :help
-    ])
+    {options, remaining_args, invalid} =
+      Command.parse_options(
+        args,
+        [
+          force: :boolean,
+          help: :boolean
+        ],
+        f: :force,
+        h: :help
+      )
 
     cond do
       options[:help] ->

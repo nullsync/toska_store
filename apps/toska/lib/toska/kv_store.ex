@@ -39,6 +39,7 @@ defmodule Toska.KVStore do
   def get(_), do: {:error, :invalid_key}
 
   def put(key, value, ttl_ms \\ nil)
+
   def put(key, value, ttl_ms) when is_binary(key) and is_binary(value) do
     call_store({:put, key, value, ttl_ms})
   end
@@ -82,6 +83,7 @@ defmodule Toska.KVStore do
   def mget(_), do: {:error, :invalid_keys}
 
   def list_keys(prefix \\ "", limit \\ 100)
+
   def list_keys(prefix, limit) when is_binary(prefix) and is_integer(limit) and limit >= 0 do
     case :ets.whereis(@table) do
       :undefined ->
@@ -440,6 +442,7 @@ defmodule Toska.KVStore do
   defp expired?(_, _now), do: false
 
   defp normalize_ttl(nil, _now), do: nil
+
   defp normalize_ttl(ttl_ms, now) when is_integer(ttl_ms) do
     if ttl_ms <= 0 do
       :expired
@@ -447,12 +450,14 @@ defmodule Toska.KVStore do
       now + ttl_ms
     end
   end
+
   defp normalize_ttl(ttl_ms, now) when is_binary(ttl_ms) do
     case Integer.parse(ttl_ms) do
       {value, ""} -> normalize_ttl(value, now)
       _ -> nil
     end
   end
+
   defp normalize_ttl(_ttl_ms, _now), do: nil
 
   defp cleanup_expired(now) do
@@ -477,6 +482,7 @@ defmodule Toska.KVStore do
           {:ok, %{"data" => data} = payload} when is_map(data) ->
             if valid_snapshot_checksum?(payload) do
               load_entries(data, now)
+
               %{
                 checksum: Map.get(payload, "checksum"),
                 created_at: Map.get(payload, "created_at")
@@ -509,6 +515,7 @@ defmodule Toska.KVStore do
       case entry do
         %{"value" => value} = map ->
           expires_at = Map.get(map, "expires_at")
+
           unless expired?(expires_at, now) do
             :ets.insert(@table, {key, value, expires_at})
           end
@@ -652,7 +659,9 @@ defmodule Toska.KVStore do
   defp sync_aof(state) do
     if state.aof_io do
       case :file.sync(state.aof_io) do
-        :ok -> %{state | last_sync_at: now_ms()}
+        :ok ->
+          %{state | last_sync_at: now_ms()}
+
         {:error, reason} ->
           Logger.warning("AOF sync failed: #{inspect(reason)}")
           state
@@ -685,7 +694,9 @@ defmodule Toska.KVStore do
 
     config =
       case GenServer.whereis(ConfigManager) do
-        nil -> %{}
+        nil ->
+          %{}
+
         _pid ->
           case ConfigManager.list() do
             {:ok, stored} -> stored
@@ -704,14 +715,19 @@ defmodule Toska.KVStore do
       snapshot_path: Path.join(data_dir, config["snapshot_file"] || defaults.snapshot_file),
       sync_mode: parse_sync_mode(config["sync_mode"], defaults.sync_mode),
       sync_interval_ms: parse_int(config["sync_interval_ms"], defaults.sync_interval_ms),
-      snapshot_interval_ms: parse_int(config["snapshot_interval_ms"], defaults.snapshot_interval_ms),
-      ttl_check_interval_ms: parse_int(config["ttl_check_interval_ms"], defaults.ttl_check_interval_ms),
-      compaction_interval_ms: parse_int(config["compaction_interval_ms"], defaults.compaction_interval_ms),
-      compaction_aof_bytes: parse_int(config["compaction_aof_bytes"], defaults.compaction_aof_bytes)
+      snapshot_interval_ms:
+        parse_int(config["snapshot_interval_ms"], defaults.snapshot_interval_ms),
+      ttl_check_interval_ms:
+        parse_int(config["ttl_check_interval_ms"], defaults.ttl_check_interval_ms),
+      compaction_interval_ms:
+        parse_int(config["compaction_interval_ms"], defaults.compaction_interval_ms),
+      compaction_aof_bytes:
+        parse_int(config["compaction_aof_bytes"], defaults.compaction_aof_bytes)
     }
   end
 
   defp parse_sync_mode(nil, default), do: default
+
   defp parse_sync_mode(mode, default) when is_binary(mode) do
     case String.downcase(mode) do
       "always" -> :always
@@ -720,17 +736,20 @@ defmodule Toska.KVStore do
       _ -> default
     end
   end
+
   defp parse_sync_mode(mode, _default) when is_atom(mode), do: mode
   defp parse_sync_mode(_, default), do: default
 
   defp parse_int(nil, default), do: default
   defp parse_int(value, _default) when is_integer(value) and value > 0, do: value
+
   defp parse_int(value, default) when is_binary(value) do
     case Integer.parse(value) do
       {int, ""} when int > 0 -> int
       _ -> default
     end
   end
+
   defp parse_int(_, default), do: default
 
   defp default_data_dir do
@@ -751,6 +770,7 @@ defmodule Toska.KVStore do
 
   defp apply_aof_record(%{"op" => "set", "key" => key, "value" => value} = record, now) do
     expires_at = Map.get(record, "expires_at")
+
     unless expired?(expires_at, now) do
       :ets.insert(@table, {key, value, expires_at})
     end
@@ -783,7 +803,8 @@ defmodule Toska.KVStore do
     end
   end
 
-  defp valid_snapshot_checksum?(%{"checksum" => checksum, "data" => data}) when is_binary(checksum) do
+  defp valid_snapshot_checksum?(%{"checksum" => checksum, "data" => data})
+       when is_binary(checksum) do
     checksum == snapshot_checksum(data)
   end
 

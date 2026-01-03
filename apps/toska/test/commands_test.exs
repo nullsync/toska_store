@@ -20,9 +20,11 @@ defmodule Toska.CommandsTest do
       stop_server()
       stop_app(:toska)
       TestHelpers.restore_env("TOSKA_CONFIG_DIR", original_config_dir)
+
       if was_started do
         Application.ensure_all_started(:toska)
       end
+
       File.rm_rf(tmp_dir)
     end)
 
@@ -79,7 +81,12 @@ defmodule Toska.CommandsTest do
     output =
       capture_io(:stderr, fn ->
         assert {:error, :already_started} =
-                 Toska.Commands.Start.execute(["--port", Integer.to_string(port), "--host", "127.0.0.1"])
+                 Toska.Commands.Start.execute([
+                   "--port",
+                   Integer.to_string(port),
+                   "--host",
+                   "127.0.0.1"
+                 ])
       end)
 
     assert output =~ "already running"
@@ -90,9 +97,12 @@ defmodule Toska.CommandsTest do
     {:ok, _pid} = Toska.Server.start(host: "127.0.0.1", port: port, env: "test")
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               Toska.Server.status().status == :running
-             end, 2000)
+             TestHelpers.wait_until(
+               fn ->
+                 Toska.Server.status().status == :running
+               end,
+               2000
+             )
 
     output =
       capture_io(:stderr, fn ->
@@ -117,13 +127,23 @@ defmodule Toska.CommandsTest do
 
     task =
       Task.async(fn ->
-        Toska.Commands.Start.execute(["--port", Integer.to_string(port), "--host", "127.0.0.1", "--env", "test"])
+        Toska.Commands.Start.execute([
+          "--port",
+          Integer.to_string(port),
+          "--host",
+          "127.0.0.1",
+          "--env",
+          "test"
+        ])
       end)
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               Toska.Server.status().status == :running
-             end, 2000)
+             TestHelpers.wait_until(
+               fn ->
+                 Toska.Server.status().status == :running
+               end,
+               2000
+             )
 
     assert :ok = Toska.Server.stop()
     Task.shutdown(task, :brutal_kill)
@@ -188,9 +208,12 @@ defmodule Toska.CommandsTest do
       end)
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               Toska.Server.status().status == :running
-             end, 2000)
+             TestHelpers.wait_until(
+               fn ->
+                 Toska.Server.status().status == :running
+               end,
+               2000
+             )
 
     assert :ok = Toska.Server.stop()
     Task.shutdown(task, :brutal_kill)
@@ -265,9 +288,12 @@ defmodule Toska.CommandsTest do
     {:ok, _pid} = Toska.Server.start(host: "127.0.0.1", port: port, env: "test")
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               Toska.Server.status().status == :running
-             end, 2000)
+             TestHelpers.wait_until(
+               fn ->
+                 Toska.Server.status().status == :running
+               end,
+               2000
+             )
 
     output =
       capture_io(fn ->
@@ -472,7 +498,12 @@ defmodule Toska.CommandsTest do
     output =
       capture_io(:stderr, fn ->
         assert {:error, :invalid_options} =
-                 Toska.Commands.Replicate.execute(["--leader", "http://localhost", "--poll", "bad"])
+                 Toska.Commands.Replicate.execute([
+                   "--leader",
+                   "http://localhost",
+                   "--poll",
+                   "bad"
+                 ])
       end)
 
     assert output =~ "Invalid options"
@@ -563,9 +594,12 @@ defmodule Toska.CommandsTest do
       end)
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               match?({:ok, _}, Toska.Replication.Follower.status())
-             end, 2000)
+             TestHelpers.wait_until(
+               fn ->
+                 match?({:ok, _}, Toska.Replication.Follower.status())
+               end,
+               2000
+             )
 
     stop_follower()
     Task.shutdown(task, :brutal_kill)
@@ -593,9 +627,12 @@ defmodule Toska.CommandsTest do
       end)
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               match?({:ok, _}, Toska.Replication.Follower.status())
-             end, 2000)
+             TestHelpers.wait_until(
+               fn ->
+                 match?({:ok, _}, Toska.Replication.Follower.status())
+               end,
+               2000
+             )
 
     output =
       capture_io(fn ->

@@ -28,7 +28,9 @@ defmodule Toska.TestHelpers do
 
   defp do_wait(fun, deadline, interval_ms) do
     case fun.() do
-      true -> :ok
+      true ->
+        :ok
+
       _ ->
         if System.monotonic_time(:millisecond) < deadline do
           :timer.sleep(interval_ms)

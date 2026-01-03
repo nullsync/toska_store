@@ -62,16 +62,19 @@ defmodule Toska.Commands.Replicate do
   end
 
   defp start_follower(args) do
-    {options, _remaining_args, invalid} = Command.parse_options(args, [
-      leader: :string,
-      poll: :integer,
-      timeout: :integer,
-      daemon: :boolean,
-      help: :boolean
-    ], [
-      h: :help,
-      d: :daemon
-    ])
+    {options, _remaining_args, invalid} =
+      Command.parse_options(
+        args,
+        [
+          leader: :string,
+          poll: :integer,
+          timeout: :integer,
+          daemon: :boolean,
+          help: :boolean
+        ],
+        h: :help,
+        d: :daemon
+      )
 
     cond do
       options[:help] ->
@@ -116,9 +119,11 @@ defmodule Toska.Commands.Replicate do
         Command.show_info("Leader: #{leader}")
         Command.show_info("Poll interval: #{poll_ms}ms")
         Command.show_info("HTTP timeout: #{timeout_ms}ms")
+
         if daemon_child do
           Command.show_info("Daemon mode active")
         end
+
         :timer.sleep(:infinity)
 
       {:error, {:already_started, _pid}} ->

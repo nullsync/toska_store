@@ -9,7 +9,7 @@ defmodule Toska.Application do
   def start(_type, _args) do
     children = [
       # Start the configuration manager
-      Toska.ConfigManager,
+      Toska.ConfigManager
       # The server will be started on demand via CLI commands
       # {Toska.Server, []}
     ]

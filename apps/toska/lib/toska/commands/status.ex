@@ -12,15 +12,18 @@ defmodule Toska.Commands.Status do
 
   @impl true
   def execute(args) do
-    {options, remaining_args, invalid} = Command.parse_options(args, [
-      verbose: :boolean,
-      json: :boolean,
-      help: :boolean
-    ], [
-      v: :verbose,
-      j: :json,
-      h: :help
-    ])
+    {options, remaining_args, invalid} =
+      Command.parse_options(
+        args,
+        [
+          verbose: :boolean,
+          json: :boolean,
+          help: :boolean
+        ],
+        v: :verbose,
+        j: :json,
+        h: :help
+      )
 
     cond do
       options[:help] ->
@@ -104,12 +107,13 @@ defmodule Toska.Commands.Status do
     IO.puts("==================")
     IO.puts("")
 
-    status_color = case status_info.server_status do
-      :running -> "✓ Running"
-      :stopped -> "✗ Stopped"
-      :error -> "⚠ Error"
-      _ -> "? Unknown"
-    end
+    status_color =
+      case status_info.server_status do
+        :running -> "✓ Running"
+        :stopped -> "✗ Stopped"
+        :error -> "⚠ Error"
+        _ -> "? Unknown"
+      end
 
     IO.puts("Status: #{status_color}")
     IO.puts("Version: #{status_info.version}")

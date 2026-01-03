@@ -37,8 +37,8 @@ end
 defmodule Toska.TestLeaderPlug do
   use Plug.Router
 
-  plug :match
-  plug :dispatch
+  plug(:match)
+  plug(:dispatch)
 
   get "/replication/snapshot" do
     payload = Toska.TestLeaderState.snapshot()
@@ -68,6 +68,7 @@ defmodule Toska.TestLeaderPlug do
 
   defp parse_offset(nil), do: 0
   defp parse_offset(offset) when is_integer(offset), do: max(offset, 0)
+
   defp parse_offset(offset) when is_binary(offset) do
     case Integer.parse(offset) do
       {value, ""} -> max(value, 0)
@@ -81,8 +82,8 @@ end
 defmodule Toska.TestLeaderErrorPlug do
   use Plug.Router
 
-  plug :match
-  plug :dispatch
+  plug(:match)
+  plug(:dispatch)
 
   get "/replication/snapshot" do
     send_resp(conn, 200, "{")
@@ -96,8 +97,8 @@ end
 defmodule Toska.TestLeaderAofErrorPlug do
   use Plug.Router
 
-  plug :match
-  plug :dispatch
+  plug(:match)
+  plug(:dispatch)
 
   get "/replication/snapshot" do
     payload = %{"data" => %{}}
@@ -117,8 +118,8 @@ end
 defmodule Toska.TestLeaderSnapshotErrorPlug do
   use Plug.Router
 
-  plug :match
-  plug :dispatch
+  plug(:match)
+  plug(:dispatch)
 
   get "/replication/snapshot" do
     send_resp(conn, 500, "snapshot_fail")
@@ -132,8 +133,8 @@ end
 defmodule Toska.TestLeaderAofNoHeaderPlug do
   use Plug.Router
 
-  plug :match
-  plug :dispatch
+  plug(:match)
+  plug(:dispatch)
 
   get "/replication/snapshot" do
     payload = %{"data" => %{}}
@@ -208,34 +209,44 @@ defmodule Toska.ReplicationFollowerTest do
       Follower.start_link(leader_url: leader_url, poll_interval_ms: 50, http_timeout_ms: 1000)
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               match?({:ok, "1"}, KVStore.get("snap"))
-             end, 1000)
+             TestHelpers.wait_until(
+               fn ->
+                 match?({:ok, "1"}, KVStore.get("snap"))
+               end,
+               1000
+             )
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               match?({:ok, "2"}, KVStore.get("aof"))
-             end, 1000)
+             TestHelpers.wait_until(
+               fn ->
+                 match?({:ok, "2"}, KVStore.get("aof"))
+               end,
+               1000
+             )
 
     offset_path = Path.join(System.get_env("TOSKA_DATA_DIR"), "replica.offset")
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               case File.read(offset_path) do
-                 {:ok, content} ->
-                   case Integer.parse(String.trim(content)) do
-                     {value, ""} when value > 0 -> true
-                     _ -> false
-                   end
+             TestHelpers.wait_until(
+               fn ->
+                 case File.read(offset_path) do
+                   {:ok, content} ->
+                     case Integer.parse(String.trim(content)) do
+                       {value, ""} when value > 0 -> true
+                       _ -> false
+                     end
 
-                 _ ->
-                   false
-               end
-             end, 1000)
+                   _ ->
+                     false
+                 end
+               end,
+               1000
+             )
   end
 
   test "status reports leader url", %{leader_url: leader_url} do
     TestLeaderState.set_snapshot(%{"data" => %{}})
+
     {:ok, _pid} =
       Follower.start_link(leader_url: leader_url, poll_interval_ms: 100, http_timeout_ms: 1000)
 
@@ -254,12 +265,15 @@ defmodule Toska.ReplicationFollowerTest do
       Follower.start_link(leader_url: leader_url, poll_interval_ms: 50, http_timeout_ms: 1000)
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               case Follower.status() do
-                 {:ok, status} -> not is_nil(status.last_error)
-                 _ -> false
-               end
-             end, 1000)
+             TestHelpers.wait_until(
+               fn ->
+                 case Follower.status() do
+                   {:ok, status} -> not is_nil(status.last_error)
+                   _ -> false
+                 end
+               end,
+               1000
+             )
   end
 
   @tag leader_plug: Toska.TestLeaderAofErrorPlug
@@ -268,12 +282,15 @@ defmodule Toska.ReplicationFollowerTest do
       Follower.start_link(leader_url: leader_url, poll_interval_ms: 50, http_timeout_ms: 1000)
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               case Follower.status() do
-                 {:ok, status} -> match?({:aof_failed, 500, _}, status.last_error)
-                 _ -> false
-               end
-             end, 1000)
+             TestHelpers.wait_until(
+               fn ->
+                 case Follower.status() do
+                   {:ok, status} -> match?({:aof_failed, 500, _}, status.last_error)
+                   _ -> false
+                 end
+               end,
+               1000
+             )
   end
 
   @tag leader_plug: Toska.TestLeaderSnapshotErrorPlug
@@ -285,12 +302,15 @@ defmodule Toska.ReplicationFollowerTest do
       Follower.start_link(leader_url: leader_url, poll_interval_ms: 50, http_timeout_ms: 1000)
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               case Follower.status() do
-                 {:ok, status} -> status.offset == 25
-                 _ -> false
-               end
-             end, 1000)
+             TestHelpers.wait_until(
+               fn ->
+                 case Follower.status() do
+                   {:ok, status} -> status.offset == 25
+                   _ -> false
+                 end
+               end,
+               1000
+             )
   end
 
   @tag leader_plug: Toska.TestLeaderAofNoHeaderPlug
@@ -299,9 +319,12 @@ defmodule Toska.ReplicationFollowerTest do
       Follower.start_link(leader_url: leader_url, poll_interval_ms: 50, http_timeout_ms: 1000)
 
     assert :ok =
-             TestHelpers.wait_until(fn ->
-               match?({:ok, "1"}, KVStore.get("aof"))
-             end, 1000)
+             TestHelpers.wait_until(
+               fn ->
+                 match?({:ok, "1"}, KVStore.get("aof"))
+               end,
+               1000
+             )
 
     assert {:ok, status} = Follower.status()
     assert status.offset > 0
@@ -334,7 +357,9 @@ defmodule Toska.ReplicationFollowerTest do
 
   defp stop_follower do
     case GenServer.whereis(Follower) do
-      nil -> :ok
+      nil ->
+        :ok
+
       pid ->
         try do
           GenServer.stop(pid)
