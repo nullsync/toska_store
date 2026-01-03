@@ -26,6 +26,18 @@ defmodule Toska.TestHelpers do
 
   def restore_env(key, value), do: put_env(key, value)
 
+  def safe_stop_server do
+    try do
+      case Toska.Server.stop() do
+        :ok -> :ok
+        {:error, :not_running} -> :ok
+        {:error, _reason} -> :ok
+      end
+    catch
+      :exit, _ -> :ok
+    end
+  end
+
   defp do_wait(fun, deadline, interval_ms) do
     case fun.() do
       true ->

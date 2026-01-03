@@ -13,7 +13,7 @@ defmodule ToskaTest do
   end
 
   test "server_running? returns false when stopped" do
-    _ = Toska.Server.stop()
+    TestHelpers.safe_stop_server()
     refute Toska.server_running?()
   end
 
@@ -25,7 +25,7 @@ defmodule ToskaTest do
     TestHelpers.put_env("TOSKA_DATA_DIR", tmp_dir)
 
     on_exit(fn ->
-      _ = Toska.Server.stop()
+      TestHelpers.safe_stop_server()
       TestHelpers.restore_env("TOSKA_DATA_DIR", original_data_dir)
       File.rm_rf(tmp_dir)
     end)

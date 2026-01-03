@@ -666,11 +666,7 @@ defmodule Toska.CommandsTest do
   end
 
   defp stop_server do
-    case Toska.Server.stop() do
-      :ok -> :ok
-      {:error, :not_running} -> :ok
-      {:error, _} -> :ok
-    end
+    TestHelpers.safe_stop_server()
   end
 
   defp app_started?(app) do

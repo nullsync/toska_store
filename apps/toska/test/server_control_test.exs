@@ -45,7 +45,7 @@ defmodule Toska.ServerControlTest do
     TestHelpers.put_env("TOSKA_DATA_DIR", tmp_dir)
 
     on_exit(fn ->
-      Toska.Server.stop()
+      TestHelpers.safe_stop_server()
       TestHelpers.restore_env("TOSKA_DATA_DIR", original_data_dir)
       File.rm_rf(tmp_dir)
     end)

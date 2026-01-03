@@ -98,10 +98,6 @@ defmodule Toska.ServerTest do
   end
 
   defp stop_server do
-    case Toska.Server.stop() do
-      :ok -> :ok
-      {:error, :not_running} -> :ok
-      {:error, _reason} -> :ok
-    end
+    TestHelpers.safe_stop_server()
   end
 end
