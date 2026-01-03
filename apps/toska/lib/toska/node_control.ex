@@ -138,7 +138,12 @@ defmodule Toska.NodeControl do
       "cookie" => Atom.to_string(cookie)
     }
 
-    File.write(runtime_file_path(), Jason.encode!(payload, pretty: true))
+    path = runtime_file_path()
+
+    case File.write(path, Jason.encode!(payload, pretty: true)) do
+      :ok -> File.chmod(path, 0o600)
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   defp read_runtime do

@@ -6,10 +6,12 @@ defmodule Toska.RouterKVTest do
   alias Toska.TestHelpers
 
   @opts Toska.Router.init([])
+  @replication_token "replication-test-token"
 
   setup do
     original_data_dir = System.get_env("TOSKA_DATA_DIR")
     original_auth_token = System.get_env("TOSKA_AUTH_TOKEN")
+    original_replication_auth_token = System.get_env("TOSKA_REPLICATION_AUTH_TOKEN")
     original_rate_limit_per = System.get_env("TOSKA_RATE_LIMIT_PER_SEC")
     original_rate_limit_burst = System.get_env("TOSKA_RATE_LIMIT_BURST")
     original_replica_url = System.get_env("TOSKA_REPLICA_URL")
@@ -18,6 +20,7 @@ defmodule Toska.RouterKVTest do
     File.mkdir_p!(tmp_dir)
     System.put_env("TOSKA_DATA_DIR", tmp_dir)
     System.delete_env("TOSKA_AUTH_TOKEN")
+    System.put_env("TOSKA_REPLICATION_AUTH_TOKEN", @replication_token)
     System.delete_env("TOSKA_RATE_LIMIT_PER_SEC")
     System.delete_env("TOSKA_RATE_LIMIT_BURST")
     System.delete_env("TOSKA_REPLICA_URL")
@@ -36,6 +39,7 @@ defmodule Toska.RouterKVTest do
       end
 
       restore_env("TOSKA_AUTH_TOKEN", original_auth_token)
+      restore_env("TOSKA_REPLICATION_AUTH_TOKEN", original_replication_auth_token)
       restore_env("TOSKA_RATE_LIMIT_PER_SEC", original_rate_limit_per)
       restore_env("TOSKA_RATE_LIMIT_BURST", original_rate_limit_burst)
       restore_env("TOSKA_REPLICA_URL", original_replica_url)
@@ -183,12 +187,14 @@ defmodule Toska.RouterKVTest do
   test "replication aof rejects invalid offsets" do
     bad_conn =
       conn("GET", "/replication/aof?since=bad")
+      |> put_replication_auth()
       |> Toska.Router.call(@opts)
 
     assert bad_conn.status == 400
 
     negative_conn =
       conn("GET", "/replication/aof?since=-1")
+      |> put_replication_auth()
       |> Toska.Router.call(@opts)
 
     assert negative_conn.status == 400
@@ -201,6 +207,7 @@ defmodule Toska.RouterKVTest do
 
     conn =
       conn("GET", "/replication/aof?since=#{size + 1}&max_bytes=1024")
+      |> put_replication_auth()
       |> Toska.Router.call(@opts)
 
     assert conn.status == 204
@@ -212,6 +219,7 @@ defmodule Toska.RouterKVTest do
 
     conn =
       conn("GET", "/replication/aof?max_bytes=1024")
+      |> put_replication_auth()
       |> Toska.Router.call(@opts)
 
     assert conn.status in [200, 204]
@@ -223,6 +231,7 @@ defmodule Toska.RouterKVTest do
 
     conn =
       conn("GET", "/replication/aof?since=0")
+      |> put_replication_auth()
       |> Toska.Router.call(@opts)
 
     assert conn.status == 503
@@ -315,6 +324,7 @@ defmodule Toska.RouterKVTest do
 
     info_conn =
       conn("GET", "/replication/info")
+      |> put_replication_auth()
       |> Toska.Router.call(@opts)
 
     assert info_conn.status == 200
@@ -323,12 +333,14 @@ defmodule Toska.RouterKVTest do
 
     status_conn =
       conn("GET", "/replication/status")
+      |> put_replication_auth()
       |> Toska.Router.call(@opts)
 
     assert status_conn.status in [200, 404]
 
     snapshot_conn =
       conn("GET", "/replication/snapshot")
+      |> put_replication_auth()
       |> Toska.Router.call(@opts)
 
     assert snapshot_conn.status == 200
@@ -337,6 +349,7 @@ defmodule Toska.RouterKVTest do
 
     aof_conn =
       conn("GET", "/replication/aof?since=0&max_bytes=1024")
+      |> put_replication_auth()
       |> Toska.Router.call(@opts)
 
     assert aof_conn.status in [200, 204]
@@ -348,6 +361,10 @@ defmodule Toska.RouterKVTest do
 
   defp restore_env(key, nil), do: System.delete_env(key)
   defp restore_env(key, value), do: System.put_env(key, value)
+
+  defp put_replication_auth(conn) do
+    put_req_header(conn, "authorization", "Bearer #{@replication_token}")
+  end
 
   defp stop_store do
     case GenServer.whereis(Toska.KVStore) do

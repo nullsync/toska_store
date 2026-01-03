@@ -102,6 +102,7 @@ defmodule Toska.ConfigManagerTest do
     assert :ok = Toska.ConfigManager.set("replica_poll_interval_ms", "250")
     assert :ok = Toska.ConfigManager.set("replica_http_timeout_ms", 1500)
     assert :ok = Toska.ConfigManager.set("auth_token", "token")
+    assert :ok = Toska.ConfigManager.set("replication_auth_token", "repl-token")
     assert :ok = Toska.ConfigManager.set("rate_limit_per_sec", "0")
     assert :ok = Toska.ConfigManager.set("rate_limit_burst", 2)
   end

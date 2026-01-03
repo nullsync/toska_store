@@ -5,7 +5,7 @@ defmodule Toska.ConfigManager do
   Handles reading, writing, and managing configuration for the Toska CLI and server.
   Configuration is stored in a simple key-value format and persisted to disk.
 
-  Hot-path configuration values (auth_token, rate limits, replica_url) are cached
+  Hot-path configuration values (auth_token, replication_auth_token, rate limits, replica_url) are cached
   in persistent_term for lock-free reads on every HTTP request.
   """
 
@@ -16,7 +16,7 @@ defmodule Toska.ConfigManager do
   @config_file "toska_config.json"
 
   # Keys cached in persistent_term for hot-path access (avoid GenServer calls per request)
-  @cached_keys ["auth_token", "rate_limit_per_sec", "rate_limit_burst", "replica_url"]
+  @cached_keys ["auth_token", "replication_auth_token", "rate_limit_per_sec", "rate_limit_burst", "replica_url"]
   @default_sync_interval_ms 1000
   @default_snapshot_interval_ms 60_000
   @default_ttl_check_interval_ms 1000
@@ -104,6 +104,25 @@ defmodule Toska.ConfigManager do
       nil -> :persistent_term.get({__MODULE__, :auth_token}, "")
       "" -> :persistent_term.get({__MODULE__, :auth_token}, "")
       token -> token
+    end
+  end
+
+  @doc """
+  Get the cached replication auth token. Falls back to auth_token when unset.
+  Environment variable TOSKA_REPLICATION_AUTH_TOKEN takes precedence.
+  """
+  def cached_replication_auth_token do
+    token =
+      case System.get_env("TOSKA_REPLICATION_AUTH_TOKEN") do
+        nil -> :persistent_term.get({__MODULE__, :replication_auth_token}, "")
+        "" -> :persistent_term.get({__MODULE__, :replication_auth_token}, "")
+        value -> value
+      end
+
+    if token == "" do
+      cached_auth_token()
+    else
+      token
     end
   end
 
@@ -268,6 +287,7 @@ defmodule Toska.ConfigManager do
   defp update_cache(config) do
     # Cache hot-path values in persistent_term for lock-free reads
     :persistent_term.put({__MODULE__, :auth_token}, config["auth_token"] || "")
+    :persistent_term.put({__MODULE__, :replication_auth_token}, config["replication_auth_token"] || "")
     :persistent_term.put({__MODULE__, :rate_limit_per_sec}, parse_int_or_default(config["rate_limit_per_sec"], 0))
     :persistent_term.put({__MODULE__, :rate_limit_burst}, parse_int_or_default(config["rate_limit_burst"], 0))
     :persistent_term.put({__MODULE__, :replica_url}, config["replica_url"] || "")
@@ -360,6 +380,9 @@ defmodule Toska.ConfigManager do
         validate_positive_int(value)
 
       "auth_token" ->
+        validate_optional_string(value)
+
+      "replication_auth_token" ->
         validate_optional_string(value)
 
       "rate_limit_per_sec" ->
@@ -477,6 +500,7 @@ defmodule Toska.ConfigManager do
       "replica_poll_interval_ms" => 1000,
       "replica_http_timeout_ms" => 5000,
       "auth_token" => "",
+      "replication_auth_token" => "",
       "rate_limit_per_sec" => 0,
       "rate_limit_burst" => 0
     }

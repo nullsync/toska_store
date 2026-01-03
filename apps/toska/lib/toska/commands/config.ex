@@ -83,6 +83,7 @@ defmodule Toska.Commands.Config do
       replica_poll_interval_ms Follower poll interval (milliseconds)
       replica_http_timeout_ms Follower HTTP timeout (milliseconds)
       auth_token Bearer token for KV endpoints (empty disables auth)
+      replication_auth_token Bearer token for replication endpoints (empty uses auth_token)
       rate_limit_per_sec Requests per second rate limit (0 disables)
       rate_limit_burst Burst capacity for rate limiting (0 disables)
     """)

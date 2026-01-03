@@ -428,7 +428,7 @@ defmodule Toska.Router do
 
   defp ensure_auth(%Plug.Conn{halted: true} = conn), do: conn
   defp ensure_auth(conn) do
-    token = auth_token()
+    token = auth_token(conn.request_path)
 
     if token == "" do
       conn
@@ -490,8 +490,12 @@ defmodule Toska.Router do
     ConfigManager.cached_follower_mode?()
   end
 
-  defp auth_token do
-    ConfigManager.cached_auth_token()
+  defp auth_token(path) do
+    if String.starts_with?(path, "/replication") do
+      ConfigManager.cached_replication_auth_token()
+    else
+      ConfigManager.cached_auth_token()
+    end
   end
 
   defp token_match?(_token, nil), do: false

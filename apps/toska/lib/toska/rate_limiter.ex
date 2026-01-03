@@ -13,13 +13,19 @@ defmodule Toska.RateLimiter do
   """
   def init do
     if :ets.whereis(@table) == :undefined do
-      :ets.new(@table, [:named_table, :set, :public, read_concurrency: true, write_concurrency: true])
+      try do
+        :ets.new(@table, [:named_table, :set, :public, read_concurrency: true, write_concurrency: true])
+      rescue
+        ArgumentError -> :ok
+      end
     end
 
     :ok
   end
 
   def allowed?(key, per_sec, burst) do
+    _ = init()
+
     cond do
       per_sec <= 0 or burst <= 0 ->
         true

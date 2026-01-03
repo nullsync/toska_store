@@ -232,7 +232,7 @@ defmodule Toska.Replication.Follower do
   end
 
   defp auth_headers do
-    token = ConfigManager.cached_auth_token()
+    token = ConfigManager.cached_replication_auth_token()
 
     if is_binary(token) and token != "" do
       bearer = "Bearer " <> token
