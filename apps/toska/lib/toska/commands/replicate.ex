@@ -108,11 +108,13 @@ defmodule Toska.Commands.Replicate do
 
   defp start_foreground(leader, poll_ms, timeout_ms, daemon_child) do
     ensure_store()
+    tls_options = replica_tls_options()
 
     case Follower.start_link(
            leader_url: leader,
            poll_interval_ms: poll_ms,
-           http_timeout_ms: timeout_ms
+           http_timeout_ms: timeout_ms,
+           tls_options: tls_options
          ) do
       {:ok, _pid} ->
         Command.show_success("Replication follower started")
@@ -134,6 +136,55 @@ defmodule Toska.Commands.Replicate do
         Command.show_error("Failed to start follower: #{inspect(reason)}")
         {:error, reason}
     end
+  end
+
+  defp replica_tls_options do
+    config = ConfigManager.replica_tls_config()
+    cert_file = config.cert_file
+    key_file = config.key_file
+    ca_cert_file = config.ca_cert_file
+
+    cert_options =
+      cond do
+        cert_file == "" and key_file == "" ->
+          []
+
+        cert_file != "" and key_file != "" ->
+          [
+            certfile:
+              cert_file |> existing_path!("replica TLS certificate") |> String.to_charlist(),
+            keyfile: key_file |> existing_path!("replica TLS key") |> String.to_charlist()
+          ]
+
+        true ->
+          raise "Replica TLS certificate and key files must be configured together"
+      end
+
+    ca_options =
+      if ca_cert_file == "" do
+        []
+      else
+        [
+          cacertfile:
+            ca_cert_file |> existing_path!("replica TLS CA certificate") |> String.to_charlist(),
+          verify: :verify_peer,
+          customize_hostname_check: [
+            match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+          ]
+        ]
+      end
+
+    cert_options ++ ca_options
+  end
+
+  defp existing_path!(path, label) do
+    expanded = Path.expand(path)
+
+    unless File.exists?(expanded) do
+      raise "#{label} file not found: #{expanded}"
+    end
+
+    expanded
   end
 
   defp start_daemon(leader, poll_ms, timeout_ms) do

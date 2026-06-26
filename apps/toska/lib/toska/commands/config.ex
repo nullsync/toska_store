@@ -93,6 +93,15 @@ defmodule Toska.Commands.Config do
       admin_auth_token Bearer token for admin endpoints (empty uses auth_token)
       replication_auth_token Bearer token for replication endpoints (empty uses auth_token)
       named_auth_tokens JSON array of named token objects with name, token, and scopes; names may use letters, numbers, . _ : @ -
+      mtls_required_scopes CSV or JSON array of admin/replication scopes requiring client certificates
+      tls_enabled Enable HTTPS server when cert/key files are configured
+      tls_cert_file Server TLS certificate file
+      tls_key_file Server TLS key file
+      tls_ca_cert_file CA file for verified client certificates
+      tls_verify_client Require client certificates for all endpoints
+      replica_tls_cert_file Follower client certificate for HTTPS replication
+      replica_tls_key_file Follower client key for HTTPS replication
+      replica_tls_ca_cert_file CA file for verifying HTTPS leaders
       rate_limit_per_sec Requests per second rate limit (0 disables)
       rate_limit_burst Burst capacity for rate limiting (0 disables)
     """)

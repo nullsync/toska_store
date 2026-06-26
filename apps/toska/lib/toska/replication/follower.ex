@@ -36,6 +36,7 @@ defmodule Toska.Replication.Follower do
         leader_url: String.trim_trailing(leader_url, "/"),
         poll_interval_ms: Keyword.get(opts, :poll_interval_ms, @default_poll_interval_ms),
         http_timeout_ms: Keyword.get(opts, :http_timeout_ms, @default_http_timeout_ms),
+        tls_options: Keyword.get(opts, :tls_options, []) || [],
         offset: 0,
         safe_offset: 0,
         buffer: "",
@@ -135,7 +136,7 @@ defmodule Toska.Replication.Follower do
   defp fetch_snapshot(state) do
     url = state.leader_url <> "/replication/snapshot"
 
-    case http_get(url, state.http_timeout_ms, auth_headers()) do
+    case http_get(url, state.http_timeout_ms, auth_headers(), state.tls_options) do
       {:ok, 200, _headers, body} ->
         case Jason.decode(body) do
           {:ok, payload} -> {:ok, payload}
@@ -157,7 +158,7 @@ defmodule Toska.Replication.Follower do
         Integer.to_string(state.offset) <>
         "&max_bytes=65536"
 
-    case http_get(url, state.http_timeout_ms, auth_headers()) do
+    case http_get(url, state.http_timeout_ms, auth_headers(), state.tls_options) do
       {:ok, 204, headers, _body} ->
         response_size = parse_aof_size(headers, state.offset)
         next_offset = max(state.offset, response_size)
@@ -216,6 +217,7 @@ defmodule Toska.Replication.Follower do
   end
 
   defp apply_aof_line(""), do: :ok
+
   defp apply_aof_line(line) do
     case Jason.decode(line) do
       {:ok, record} -> KVStore.apply_replication(record)
@@ -247,9 +249,9 @@ defmodule Toska.Replication.Follower do
     end)
   end
 
-  defp http_get(url, timeout_ms, headers) do
+  defp http_get(url, timeout_ms, headers, tls_options) do
     request = {to_charlist(url), headers}
-    http_options = [timeout: timeout_ms, connect_timeout: timeout_ms]
+    http_options = http_options(timeout_ms, tls_options)
     options = [body_format: :binary]
 
     case :httpc.request(:get, request, http_options, options) do
@@ -259,6 +261,12 @@ defmodule Toska.Replication.Follower do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp http_options(timeout_ms, []), do: [timeout: timeout_ms, connect_timeout: timeout_ms]
+
+  defp http_options(timeout_ms, tls_options) do
+    [timeout: timeout_ms, connect_timeout: timeout_ms, ssl: tls_options]
   end
 
   defp auth_headers do
@@ -315,7 +323,8 @@ defmodule Toska.Replication.Follower do
             value = max(value, 0)
             %{state | offset: value, safe_offset: value}
 
-          _ -> state
+          _ ->
+            state
         end
 
       _ ->

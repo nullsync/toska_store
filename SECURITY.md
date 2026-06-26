@@ -23,3 +23,4 @@ When deploying ToskaStore:
 - Review `toska_audit` logs for write and admin activity
 - Restrict network access to trusted clients only
 - Use TLS/HTTPS when exposing ToskaStore over the network
+- Require endpoint mTLS for admin and replication paths with `mtls_required_scopes=admin,replication` when exposing them across host or network boundaries

@@ -17,6 +17,7 @@ defmodule Toska.RouterKVTest do
     original_admin_auth_token = System.get_env("TOSKA_ADMIN_AUTH_TOKEN")
     original_replication_auth_token = System.get_env("TOSKA_REPLICATION_AUTH_TOKEN")
     original_named_auth_tokens = System.get_env("TOSKA_NAMED_AUTH_TOKENS")
+    original_mtls_required_scopes = System.get_env("TOSKA_MTLS_REQUIRED_SCOPES")
     original_rate_limit_per = System.get_env("TOSKA_RATE_LIMIT_PER_SEC")
     original_rate_limit_burst = System.get_env("TOSKA_RATE_LIMIT_BURST")
     original_replica_url = System.get_env("TOSKA_REPLICA_URL")
@@ -30,6 +31,7 @@ defmodule Toska.RouterKVTest do
     System.delete_env("TOSKA_ADMIN_AUTH_TOKEN")
     System.put_env("TOSKA_REPLICATION_AUTH_TOKEN", @replication_token)
     System.delete_env("TOSKA_NAMED_AUTH_TOKENS")
+    System.delete_env("TOSKA_MTLS_REQUIRED_SCOPES")
     System.delete_env("TOSKA_RATE_LIMIT_PER_SEC")
     System.delete_env("TOSKA_RATE_LIMIT_BURST")
     System.delete_env("TOSKA_REPLICA_URL")
@@ -53,6 +55,7 @@ defmodule Toska.RouterKVTest do
       restore_env("TOSKA_ADMIN_AUTH_TOKEN", original_admin_auth_token)
       restore_env("TOSKA_REPLICATION_AUTH_TOKEN", original_replication_auth_token)
       restore_env("TOSKA_NAMED_AUTH_TOKENS", original_named_auth_tokens)
+      restore_env("TOSKA_MTLS_REQUIRED_SCOPES", original_mtls_required_scopes)
       restore_env("TOSKA_RATE_LIMIT_PER_SEC", original_rate_limit_per)
       restore_env("TOSKA_RATE_LIMIT_BURST", original_rate_limit_burst)
       restore_env("TOSKA_REPLICA_URL", original_replica_url)
@@ -854,6 +857,54 @@ defmodule Toska.RouterKVTest do
     assert log =~ "status=200"
   end
 
+  test "mtls required scopes reject admin and replication requests without client cert" do
+    System.put_env("TOSKA_ADMIN_AUTH_TOKEN", "admin-secret")
+    System.put_env("TOSKA_MTLS_REQUIRED_SCOPES", "admin,replication")
+
+    admin_conn =
+      conn("POST", "/admin/reload")
+      |> put_req_header("authorization", "Bearer admin-secret")
+      |> Toska.Router.call(@opts)
+
+    assert admin_conn.status == 403
+    assert Jason.decode!(admin_conn.resp_body)["error"] == "Client certificate required"
+
+    replication_conn =
+      conn("GET", "/replication/info")
+      |> put_replication_auth()
+      |> Toska.Router.call(@opts)
+
+    assert replication_conn.status == 403
+    assert Jason.decode!(replication_conn.resp_body)["error"] == "Client certificate required"
+
+    read_conn =
+      conn("GET", "/kv/mtls-not-required")
+      |> Toska.Router.call(@opts)
+
+    assert read_conn.status == 404
+  end
+
+  test "mtls required scopes allow admin and replication requests with client cert" do
+    System.put_env("TOSKA_ADMIN_AUTH_TOKEN", "admin-secret")
+    System.put_env("TOSKA_MTLS_REQUIRED_SCOPES", "admin,replication")
+
+    admin_conn =
+      conn("POST", "/admin/reload")
+      |> put_req_header("authorization", "Bearer admin-secret")
+      |> put_client_cert()
+      |> Toska.Router.call(@opts)
+
+    assert admin_conn.status == 200
+
+    replication_conn =
+      conn("GET", "/replication/info")
+      |> put_replication_auth()
+      |> put_client_cert()
+      |> Toska.Router.call(@opts)
+
+    assert replication_conn.status == 200
+  end
+
   test "read token protects metrics endpoint" do
     System.put_env("TOSKA_READ_AUTH_TOKEN", "read-secret")
 
@@ -1012,6 +1063,10 @@ defmodule Toska.RouterKVTest do
 
   defp put_replication_auth(conn) do
     put_req_header(conn, "authorization", "Bearer #{@replication_token}")
+  end
+
+  defp put_client_cert(conn) do
+    put_peer_data(conn, %{address: {127, 0, 0, 1}, port: 111_317, ssl_cert: <<1, 2, 3>>})
   end
 
   defp sse_events(body) do

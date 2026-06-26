@@ -75,7 +75,9 @@ defmodule Toska.ConfigManagerTest do
     assert {:error, _} = Toska.ConfigManager.set("env", "stage")
     assert {:error, _} = Toska.ConfigManager.set("log_level", "verbose")
     assert {:error, _} = Toska.ConfigManager.set("host", "")
+    assert {:error, _} = Toska.ConfigManager.set("tls_enabled", "maybe")
     assert {:error, _} = Toska.ConfigManager.set("named_auth_tokens", "not-json")
+    assert {:error, _} = Toska.ConfigManager.set("mtls_required_scopes", "read")
 
     assert {:error, _} =
              Toska.ConfigManager.set(
@@ -114,11 +116,17 @@ defmodule Toska.ConfigManagerTest do
     assert :ok = Toska.ConfigManager.set("replica_url", "http://localhost:4000")
     assert :ok = Toska.ConfigManager.set("replica_poll_interval_ms", "250")
     assert :ok = Toska.ConfigManager.set("replica_http_timeout_ms", 1500)
+    assert :ok = Toska.ConfigManager.set("replica_tls_cert_file", "/tmp/client.crt")
+    assert :ok = Toska.ConfigManager.set("replica_tls_key_file", "/tmp/client.key")
+    assert :ok = Toska.ConfigManager.set("replica_tls_ca_cert_file", "/tmp/ca.crt")
     assert :ok = Toska.ConfigManager.set("auth_token", "token")
     assert :ok = Toska.ConfigManager.set("read_auth_token", "read-token")
     assert :ok = Toska.ConfigManager.set("write_auth_token", "write-token")
     assert :ok = Toska.ConfigManager.set("admin_auth_token", "admin-token")
     assert :ok = Toska.ConfigManager.set("replication_auth_token", "repl-token")
+    assert :ok = Toska.ConfigManager.set("tls_enabled", "true")
+    assert :ok = Toska.ConfigManager.set("tls_verify_client", false)
+    assert :ok = Toska.ConfigManager.set("mtls_required_scopes", "admin,replication")
 
     assert :ok =
              Toska.ConfigManager.set(
@@ -132,9 +140,25 @@ defmodule Toska.ConfigManagerTest do
     assert {:ok, named_tokens} = Toska.ConfigManager.get("named_auth_tokens")
     assert Enum.map(named_tokens, & &1["name"]) == ["ci", "ops"]
     assert Enum.flat_map(named_tokens, & &1["scopes"]) == ["read", "write", "admin"]
+    assert {:ok, ["admin", "replication"]} = Toska.ConfigManager.get("mtls_required_scopes")
+    assert Toska.ConfigManager.cached_mtls_required_scopes() == ["admin", "replication"]
 
     assert :ok = Toska.ConfigManager.set("rate_limit_per_sec", "0")
     assert :ok = Toska.ConfigManager.set("rate_limit_burst", 2)
+  end
+
+  test "invalid mtls required scopes env fails closed" do
+    original = System.get_env("TOSKA_MTLS_REQUIRED_SCOPES")
+    System.put_env("TOSKA_MTLS_REQUIRED_SCOPES", "read")
+
+    on_exit(fn ->
+      case original do
+        nil -> System.delete_env("TOSKA_MTLS_REQUIRED_SCOPES")
+        value -> System.put_env("TOSKA_MTLS_REQUIRED_SCOPES", value)
+      end
+    end)
+
+    assert Toska.ConfigManager.cached_mtls_required_scopes() == ["admin", "replication"]
   end
 
   test "parses numeric strings for unknown keys" do

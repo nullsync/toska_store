@@ -986,6 +986,7 @@ defmodule Toska.Router do
       scope ->
         conn
         |> ensure_auth(scope)
+        |> ensure_mtls(scope)
         |> register_audit(scope)
         |> ensure_rate_limit()
         |> ensure_read_only()
@@ -1082,6 +1083,35 @@ defmodule Toska.Router do
     Enum.find(configured_tokens, fn configured ->
       token_match?(configured.token, presented_token)
     end)
+  end
+
+  defp ensure_mtls(%Plug.Conn{halted: true} = conn, _scope), do: conn
+
+  defp ensure_mtls(conn, scope) do
+    if mtls_required?(scope) and not client_certificate_present?(conn) do
+      conn
+      |> put_resp_content_type("application/json")
+      |> send_resp(403, Jason.encode!(%{error: "Client certificate required"}))
+      |> halt()
+    else
+      conn
+    end
+  end
+
+  defp mtls_required?(scope) do
+    scope
+    |> Atom.to_string()
+    |> then(&(&1 in ConfigManager.cached_mtls_required_scopes()))
+  end
+
+  defp client_certificate_present?(conn) do
+    case Plug.Conn.get_peer_data(conn) do
+      %{ssl_cert: cert} when is_binary(cert) and byte_size(cert) > 0 -> true
+      %{ssl_cert: cert} when not is_nil(cert) -> true
+      _ -> false
+    end
+  rescue
+    _ -> false
   end
 
   defp register_audit(%Plug.Conn{halted: true} = conn, _scope), do: conn

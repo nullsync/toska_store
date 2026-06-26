@@ -217,6 +217,7 @@ KV, lease, lock, stats, metrics, admin, and replication endpoints can require sc
 - `admin_auth_token` (or `TOSKA_ADMIN_AUTH_TOKEN`) protects admin endpoints.
 - `replication_auth_token` (or `TOSKA_REPLICATION_AUTH_TOKEN`) protects replication endpoints.
 - `named_auth_tokens` (or `TOSKA_NAMED_AUTH_TOKENS`) accepts a JSON array of named tokens with `name`, `token`, and `scopes` fields. Valid scopes are `read`, `write`, `admin`, and `replication`; names may use letters, numbers, `.`, `_`, `:`, `@`, and `-`.
+- `mtls_required_scopes` (or `TOSKA_MTLS_REQUIRED_SCOPES`) accepts `admin`, `replication`, or both as a CSV list or JSON array. When set, those endpoints require a verified TLS client certificate.
 - Scoped tokens fall back to `auth_token` (or `TOSKA_AUTH_TOKEN`) when unset.
 - Protected endpoints expect `Authorization: Bearer <token>` or `X-Toska-Token`.
 - `rate_limit_per_sec` + `rate_limit_burst` (or `TOSKA_RATE_LIMIT_PER_SEC`, `TOSKA_RATE_LIMIT_BURST`).
@@ -226,6 +227,8 @@ Example named token configuration:
 ```bash
 toska config set named_auth_tokens '[{"name":"ci","token":"ci-secret","scopes":["read","write"]},{"name":"ops","token":"ops-secret","scopes":["admin","replication"]}]'
 ```
+
+Endpoint mTLS requires `tls_enabled`, `tls_cert_file`, `tls_key_file`, and `tls_ca_cert_file` so the server can request and verify client certificates. Use `mtls_required_scopes=admin,replication` to require client certificates only on admin and replication endpoints, or `tls_verify_client=true` to require client certificates for every endpoint. Followers can present a client certificate with `replica_tls_cert_file` + `replica_tls_key_file` and can verify an HTTPS leader with `replica_tls_ca_cert_file`.
 
 Write and admin requests emit `toska_audit` log entries with scope, token name, method, path, status, and client IP. Legacy scoped tokens appear as `legacy:<scope>`, and unauthenticated deployments log `token=none`.
 
@@ -495,6 +498,11 @@ Set `TOSKA_CONFIG_DIR` to override the configuration directory used for `toska_c
 - **admin_auth_token** - Bearer token for admin endpoints, falling back to `auth_token` when empty (default: empty)
 - **replication_auth_token** - Bearer token for replication endpoints, falling back to `auth_token` when empty (default: empty)
 - **named_auth_tokens** - Named token objects with `name`, `token`, and `scopes` fields for audit attribution. Names may use letters, numbers, `.`, `_`, `:`, `@`, and `-` (default: empty)
+- **mtls_required_scopes** - `admin`, `replication`, or both. Requires a verified TLS client certificate for those endpoint scopes (default: empty)
+- **tls_enabled** - Serve HTTPS when certificate and key files are configured (default: false)
+- **tls_cert_file** / **tls_key_file** / **tls_ca_cert_file** - Server TLS certificate, key, and client CA files (default: empty)
+- **tls_verify_client** - Require client certificates for all endpoints at TLS handshake time (default: false)
+- **replica_tls_cert_file** / **replica_tls_key_file** / **replica_tls_ca_cert_file** - Follower HTTPS client certificate, key, and leader CA files (default: empty)
 - **rate_limit_per_sec** - Requests per second limit (default: 0, disabled)
 - **rate_limit_burst** - Burst capacity for rate limiting (default: 0, disabled)
 
@@ -547,6 +555,9 @@ The application respects the following environment variables:
 - `TOSKA_ADMIN_AUTH_TOKEN` - Require a separate auth token for admin endpoints
 - `TOSKA_REPLICATION_AUTH_TOKEN` - Require a separate auth token for replication endpoints
 - `TOSKA_NAMED_AUTH_TOKENS` - JSON array of named tokens with `name`, `token`, and `scopes`
+- `TOSKA_MTLS_REQUIRED_SCOPES` - CSV list or JSON array of `admin` and/or `replication` endpoint scopes requiring client certificates
+- `TOSKA_TLS_ENABLED`, `TOSKA_TLS_CERT_FILE`, `TOSKA_TLS_KEY_FILE`, `TOSKA_TLS_CA_CERT_FILE`, `TOSKA_TLS_VERIFY_CLIENT` - Server TLS and global mTLS settings
+- `TOSKA_REPLICA_TLS_CERT_FILE`, `TOSKA_REPLICA_TLS_KEY_FILE`, `TOSKA_REPLICA_TLS_CA_CERT_FILE` - Follower TLS client certificate and leader CA settings
 - `TOSKA_RATE_LIMIT_PER_SEC` - Requests per second limit
 - `TOSKA_RATE_LIMIT_BURST` - Burst capacity for rate limiting
 
