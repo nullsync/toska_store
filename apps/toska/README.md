@@ -195,9 +195,12 @@ KV, lease, lock, stats, metrics, admin, and replication endpoints can require sc
 - `admin_auth_token` (or `TOSKA_ADMIN_AUTH_TOKEN`) protects admin endpoints.
 - `replication_auth_token` (or `TOSKA_REPLICATION_AUTH_TOKEN`) protects replication endpoints.
 - `named_auth_tokens` (or `TOSKA_NAMED_AUTH_TOKENS`) accepts a JSON array of named tokens with `name`, `token`, and `scopes` fields. Valid scopes are `read`, `write`, `admin`, and `replication`; names may use letters, numbers, `.`, `_`, `:`, `@`, and `-`.
+- `mtls_required_scopes` (or `TOSKA_MTLS_REQUIRED_SCOPES`) accepts `admin`, `replication`, or both as a CSV list or JSON array. When set, those endpoints require a verified TLS client certificate.
 - Scoped tokens fall back to `auth_token` (or `TOSKA_AUTH_TOKEN`) when unset.
 - Protected endpoints expect `Authorization: Bearer <token>` or `X-Toska-Token`.
 - `rate_limit_per_sec` + `rate_limit_burst` (or `TOSKA_RATE_LIMIT_PER_SEC`, `TOSKA_RATE_LIMIT_BURST`).
+
+Endpoint mTLS requires `tls_enabled`, `tls_cert_file`, `tls_key_file`, and `tls_ca_cert_file`. `tls_verify_client=true` keeps the legacy behavior of requiring a client certificate for every endpoint. Followers can present a client certificate with `replica_tls_cert_file` + `replica_tls_key_file` and can verify an HTTPS leader with `replica_tls_ca_cert_file`.
 
 Write and admin requests emit `toska_audit` log entries with the matched token name when a named token is used.
 
@@ -259,6 +262,11 @@ Set `TOSKA_DATA_DIR` to override the data directory for AOF/snapshot files.
 - **admin_auth_token** (string): Bearer token for admin endpoints, falling back to `auth_token` when empty (default: empty)
 - **replication_auth_token** (string): Bearer token for replication endpoints, falling back to `auth_token` when empty (default: empty)
 - **named_auth_tokens** (array): Named token objects with `name`, `token`, and `scopes` fields for audit attribution. Names may use letters, numbers, `.`, `_`, `:`, `@`, and `-` (default: empty)
+- **mtls_required_scopes** (array/string): `admin`, `replication`, or both. Requires a verified TLS client certificate for those endpoint scopes (default: empty)
+- **tls_enabled** (boolean): Serve HTTPS when certificate and key files are configured (default: false)
+- **tls_cert_file** / **tls_key_file** / **tls_ca_cert_file** (string): Server TLS certificate, key, and client CA files (default: empty)
+- **tls_verify_client** (boolean): Require client certificates for all endpoints at TLS handshake time (default: false)
+- **replica_tls_cert_file** / **replica_tls_key_file** / **replica_tls_ca_cert_file** (string): Follower HTTPS client certificate, key, and leader CA files (default: empty)
 - **rate_limit_per_sec** (integer): Requests per second limit (default: 0, disabled)
 - **rate_limit_burst** (integer): Burst capacity for rate limiting (default: 0, disabled)
 

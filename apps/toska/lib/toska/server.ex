@@ -310,23 +310,41 @@ defmodule Toska.Server do
         versions: [:"tlsv1.3", :"tlsv1.2"]
       ]
 
+      client_verification? = config.verify_client or config.mtls_required_scopes != []
+
       tls_opts =
-        if config.verify_client and config.ca_cert_file != "" do
-          ca_path = Path.expand(config.ca_cert_file)
+        if client_verification? do
+          ca_cert_file = config.ca_cert_file
+
+          if ca_cert_file == "" do
+            Logger.error("TLS CA certificate file is required when mTLS is enabled")
+            raise "TLS CA certificate file is required when mTLS is enabled"
+          end
+
+          ca_path = Path.expand(ca_cert_file)
 
           unless File.exists?(ca_path) do
             Logger.error("TLS CA certificate file not found: #{ca_path}")
             raise "TLS CA certificate file not found: #{ca_path}"
           end
 
-          Logger.info("mTLS enabled - client certificate verification required")
+          if config.verify_client do
+            Logger.info(
+              "mTLS enabled - client certificate verification required for all endpoints"
+            )
+          else
+            Logger.info(
+              "mTLS enabled - client certificate verification requested for #{Enum.join(config.mtls_required_scopes, ",")} endpoints"
+            )
+          end
 
-          # mTLS: require and verify client certificates
+          # mTLS: verify provided client certificates. `tls_verify_client` keeps
+          # the legacy global requirement; endpoint policy is enforced in Router.
           base_tls ++
             [
               cacertfile: String.to_charlist(ca_path),
               verify: :verify_peer,
-              fail_if_no_peer_cert: true
+              fail_if_no_peer_cert: config.verify_client
             ]
         else
           base_tls
@@ -388,7 +406,7 @@ defmodule Toska.Server do
     url = System.get_env("TOSKA_REPLICA_URL") || config["replica_url"]
 
     if is_binary(url) and url != "" do
-      [
+      opts = [
         leader_url: url,
         poll_interval_ms:
           parse_int(
@@ -403,9 +421,63 @@ defmodule Toska.Server do
             5000
           )
       ]
+
+      case replica_tls_options() do
+        [] -> opts
+        tls_options -> Keyword.put(opts, :tls_options, tls_options)
+      end
     else
       nil
     end
+  end
+
+  defp replica_tls_options do
+    config = ConfigManager.replica_tls_config()
+    cert_file = config.cert_file
+    key_file = config.key_file
+    ca_cert_file = config.ca_cert_file
+
+    cert_options =
+      cond do
+        cert_file == "" and key_file == "" ->
+          []
+
+        cert_file != "" and key_file != "" ->
+          [
+            certfile:
+              cert_file |> existing_path!("replica TLS certificate") |> String.to_charlist(),
+            keyfile: key_file |> existing_path!("replica TLS key") |> String.to_charlist()
+          ]
+
+        true ->
+          raise "Replica TLS certificate and key files must be configured together"
+      end
+
+    ca_options =
+      if ca_cert_file == "" do
+        []
+      else
+        [
+          cacertfile:
+            ca_cert_file |> existing_path!("replica TLS CA certificate") |> String.to_charlist(),
+          verify: :verify_peer,
+          customize_hostname_check: [
+            match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+          ]
+        ]
+      end
+
+    cert_options ++ ca_options
+  end
+
+  defp existing_path!(path, label) do
+    expanded = Path.expand(path)
+
+    unless File.exists?(expanded) do
+      raise "#{label} file not found: #{expanded}"
+    end
+
+    expanded
   end
 
   defp parse_int(nil, nil, default), do: default

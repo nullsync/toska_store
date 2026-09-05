@@ -148,7 +148,7 @@ ToskaStore's main adoption advantage is HTTP/JSON ergonomics, so client friction
 
 ### 7. Production Security
 
-Status: In progress.
+Status: Complete.
 
 Implementation checkpoints:
 
@@ -156,7 +156,7 @@ Implementation checkpoints:
 - [x] Enforce scoped tokens across protected HTTP endpoints.
 - [x] Preserve `auth_token` as the legacy fallback when scoped tokens are unset.
 - [x] Add named tokens for auditability.
-- [ ] Add optional mTLS for replication and admin endpoints.
+- [x] Add optional mTLS for replication and admin endpoints.
 - [x] Add audit logging for writes and admin changes.
 
 Move beyond one shared token:

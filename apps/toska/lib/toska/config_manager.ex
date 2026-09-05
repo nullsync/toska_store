@@ -23,12 +23,14 @@ defmodule Toska.ConfigManager do
     "admin_auth_token",
     "replication_auth_token",
     "named_auth_tokens",
+    "mtls_required_scopes",
     "rate_limit_per_sec",
     "rate_limit_burst",
     "replica_url",
     "max_body_size"
   ]
   @auth_scopes ["read", "write", "admin", "replication"]
+  @mtls_scopes ["admin", "replication"]
   @named_auth_token_name_pattern ~r/^[A-Za-z0-9._:@-]+$/
   @default_sync_interval_ms 1000
   @default_snapshot_interval_ms 60_000
@@ -177,6 +179,20 @@ defmodule Toska.ConfigManager do
   end
 
   @doc """
+  Get scopes that require a verified mTLS client certificate.
+  Environment variable TOSKA_MTLS_REQUIRED_SCOPES takes precedence and accepts a
+  comma-separated list or a JSON array. Invalid environment values fail closed by
+  requiring mTLS for admin and replication scopes.
+  """
+  def cached_mtls_required_scopes do
+    case System.get_env("TOSKA_MTLS_REQUIRED_SCOPES") do
+      nil -> :persistent_term.get({__MODULE__, :mtls_required_scopes}, [])
+      "" -> :persistent_term.get({__MODULE__, :mtls_required_scopes}, [])
+      value -> normalize_mtls_required_scopes(value)
+    end
+  end
+
+  @doc """
   Get the cached rate limit config. Returns {per_sec, burst}.
   Environment variables TOSKA_RATE_LIMIT_PER_SEC and TOSKA_RATE_LIMIT_BURST take precedence.
   """
@@ -257,7 +273,38 @@ defmodule Toska.ConfigManager do
       cert_file: System.get_env("TOSKA_TLS_CERT_FILE") || config["tls_cert_file"] || "",
       key_file: System.get_env("TOSKA_TLS_KEY_FILE") || config["tls_key_file"] || "",
       ca_cert_file: System.get_env("TOSKA_TLS_CA_CERT_FILE") || config["tls_ca_cert_file"] || "",
-      verify_client: env_bool("TOSKA_TLS_VERIFY_CLIENT", config["tls_verify_client"])
+      verify_client: env_bool("TOSKA_TLS_VERIFY_CLIENT", config["tls_verify_client"]),
+      mtls_required_scopes: cached_mtls_required_scopes()
+    }
+  end
+
+  @doc """
+  Get follower HTTPS client certificate configuration for leader replication.
+  Environment variables take precedence over config file values.
+  """
+  def replica_tls_config do
+    case GenServer.whereis(@name) do
+      nil ->
+        replica_tls_config_from_env(%{})
+
+      _pid ->
+        case list() do
+          {:ok, config} -> replica_tls_config_from_env(config)
+          _ -> replica_tls_config_from_env(%{})
+        end
+    end
+  end
+
+  defp replica_tls_config_from_env(config) do
+    %{
+      cert_file:
+        System.get_env("TOSKA_REPLICA_TLS_CERT_FILE") || config["replica_tls_cert_file"] || "",
+      key_file:
+        System.get_env("TOSKA_REPLICA_TLS_KEY_FILE") || config["replica_tls_key_file"] || "",
+      ca_cert_file:
+        System.get_env("TOSKA_REPLICA_TLS_CA_CERT_FILE") ||
+          config["replica_tls_ca_cert_file"] ||
+          ""
     }
   end
 
@@ -307,6 +354,13 @@ defmodule Toska.ConfigManager do
 
   defp invalid_named_auth_tokens do
     [%{"name" => "invalid_named_auth_tokens", "token" => nil, "scopes" => @auth_scopes}]
+  end
+
+  defp normalize_mtls_required_scopes(value) do
+    case validate_mtls_required_scopes(value) do
+      {:ok, scopes} -> scopes
+      {:error, _reason} -> @mtls_scopes
+    end
   end
 
   # GenServer Callbacks
@@ -439,6 +493,11 @@ defmodule Toska.ConfigManager do
     )
 
     :persistent_term.put(
+      {__MODULE__, :mtls_required_scopes},
+      normalize_mtls_required_scopes(config["mtls_required_scopes"] || [])
+    )
+
+    :persistent_term.put(
       {__MODULE__, :rate_limit_per_sec},
       parse_int_or_default(config["rate_limit_per_sec"], 0)
     )
@@ -558,6 +617,15 @@ defmodule Toska.ConfigManager do
       "replica_http_timeout_ms" ->
         validate_positive_int(value)
 
+      "replica_tls_cert_file" ->
+        validate_optional_string(value)
+
+      "replica_tls_key_file" ->
+        validate_optional_string(value)
+
+      "replica_tls_ca_cert_file" ->
+        validate_optional_string(value)
+
       "auth_token" ->
         validate_optional_string(value)
 
@@ -576,11 +644,29 @@ defmodule Toska.ConfigManager do
       "named_auth_tokens" ->
         validate_named_auth_tokens(value)
 
+      "mtls_required_scopes" ->
+        validate_mtls_required_scopes(value)
+
       "rate_limit_per_sec" ->
         validate_nonnegative_int(value)
 
       "rate_limit_burst" ->
         validate_nonnegative_int(value)
+
+      "tls_enabled" ->
+        validate_bool(value)
+
+      "tls_cert_file" ->
+        validate_optional_string(value)
+
+      "tls_key_file" ->
+        validate_optional_string(value)
+
+      "tls_ca_cert_file" ->
+        validate_optional_string(value)
+
+      "tls_verify_client" ->
+        validate_bool(value)
 
       _ ->
         # Allow unknown keys for extensibility
@@ -649,6 +735,13 @@ defmodule Toska.ConfigManager do
   defp validate_optional_string(nil), do: {:ok, nil}
   defp validate_optional_string(_), do: {:error, "Value must be a string or empty"}
 
+  defp validate_bool(value) when is_boolean(value), do: {:ok, value}
+  defp validate_bool("true"), do: {:ok, true}
+  defp validate_bool("1"), do: {:ok, true}
+  defp validate_bool("false"), do: {:ok, false}
+  defp validate_bool("0"), do: {:ok, false}
+  defp validate_bool(_), do: {:error, "Value must be true or false"}
+
   defp validate_named_auth_tokens(value) when is_binary(value) do
     case Jason.decode(value) do
       {:ok, decoded} -> validate_named_auth_tokens(decoded)
@@ -701,6 +794,53 @@ defmodule Toska.ConfigManager do
   end
 
   defp validate_named_auth_token(_), do: {:error, "Named auth token must be an object"}
+
+  defp validate_mtls_required_scopes(value) when is_binary(value) do
+    value = String.trim(value)
+
+    cond do
+      value == "" ->
+        {:ok, []}
+
+      String.starts_with?(value, "[") ->
+        case Jason.decode(value) do
+          {:ok, decoded} -> validate_mtls_required_scopes(decoded)
+          {:error, _reason} -> {:error, "mTLS required scopes must be a JSON array or CSV list"}
+        end
+
+      true ->
+        value
+        |> String.split(",", trim: true)
+        |> Enum.map(&String.trim/1)
+        |> validate_mtls_required_scopes()
+    end
+  end
+
+  defp validate_mtls_required_scopes(value) when is_list(value) do
+    normalized =
+      value
+      |> Enum.map(&normalize_mtls_required_scope/1)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    if length(normalized) == length(Enum.uniq(value)) do
+      {:ok, normalized}
+    else
+      {:error, "mTLS required scopes must be admin and/or replication"}
+    end
+  end
+
+  defp validate_mtls_required_scopes(_), do: {:error, "mTLS required scopes must be a list"}
+
+  defp normalize_mtls_required_scope(scope) when scope in @mtls_scopes, do: scope
+
+  defp normalize_mtls_required_scope(scope) when is_atom(scope) do
+    scope
+    |> Atom.to_string()
+    |> normalize_mtls_required_scope()
+  end
+
+  defp normalize_mtls_required_scope(_), do: nil
 
   defp normalize_named_token_scopes(scopes) do
     normalized =
@@ -785,12 +925,16 @@ defmodule Toska.ConfigManager do
       "replica_url" => "",
       "replica_poll_interval_ms" => 1000,
       "replica_http_timeout_ms" => 5000,
+      "replica_tls_cert_file" => "",
+      "replica_tls_key_file" => "",
+      "replica_tls_ca_cert_file" => "",
       "auth_token" => "",
       "read_auth_token" => "",
       "write_auth_token" => "",
       "admin_auth_token" => "",
       "replication_auth_token" => "",
       "named_auth_tokens" => [],
+      "mtls_required_scopes" => [],
       "rate_limit_per_sec" => 0,
       "rate_limit_burst" => 0,
       # TLS configuration
